@@ -106,7 +106,8 @@
   const biomeOf = f => BIOMES[biomeIdx(f)];
   const TIER_UP = { short: 'medium', medium: 'long', long: 'long' };
   const FONT = '"Pixelify Sans", ui-monospace, monospace';
-  const GOLD = '#ffcf5a', NEON = '#59f3ff';
+  const NUM_FONT = '"Jersey 10", "Pixelify Sans", ui-monospace, monospace'; // digits that never read as 8
+  const GOLD = '#ffcf5a', NEON = '#59f3ff', SCORE_C = '#f3eeff'; // score floaters stay white so they never read as gold
   const GORE = {
     bone: ['#e8e2cf', '#a89f86', '#ffffff'],
     green: ['#5fae3e', '#3a7a26', '#9be36b'],
@@ -115,7 +116,9 @@
     stone: ['#8b8f99', '#5d616c', '#ff7a1a'],
     fire: ['#ffcf5a', '#ff7a1a', '#ff3b1a'],
     blood: ['#e0344e', '#8e1c32', '#ff6a7a'],
-    boss: ['#ff2d55', '#4a3a6a', '#d4a53c', '#ffffff']
+    boss: ['#ff2d55', '#4a3a6a', '#d4a53c', '#ffffff'],
+    cage: ['#5d616c', '#8b8f99', '#d4a53c', '#ffcf5a'],
+    holy: ['#fff6c8', '#ffcf5a', '#ff8ab0', '#ffffff']
   };
   const KINDS = {
     skeleton: { spr: 'skeleton', speed: 21, tier: 'short', fly: false, coins: [1, 2], gore: 'bone', s: 2 },
@@ -125,9 +128,10 @@
     golem: { spr: 'golem', speed: 12, tier: 'long', fly: false, coins: [4, 7], gore: 'stone', s: 2 },
     fireball: { spr: null, speed: 40, tier: 'short', fly: true, coins: [0, 0], gore: 'fire', s: 1, w: 10, h: 12 }
   };
-  // rarity: 0 common, 1 rare, 2 epic. Fallbacks are only offered when the pool runs dry.
+  // rarity: 0 common, 1 rare, 2 epic, 3 legendary (only granted by rescued princesses).
+  // Fallbacks are only offered when the pool runs dry.
   const UPGRADES = [
-    { id: 'greed', rarity: 0, max: 5 },
+    { id: 'greed', rarity: 0, max: 4 },
     { id: 'magnet', rarity: 0, max: 3 },
     { id: 'scholar', rarity: 0, max: 3 },
     { id: 'frost', rarity: 0, max: 4 },
@@ -153,7 +157,6 @@
     { id: 'piercing', rarity: 0, max: 2 },
     { id: 'bloodthirst', rarity: 1, max: 2 },
     { id: 'momentum', rarity: 1, max: 2 },
-    { id: 'overcharge', rarity: 1, max: 2 },
     { id: 'giantslayer', rarity: 1, max: 2 },
     { id: 'berserker', rarity: 1, max: 1 },
     { id: 'spiked', rarity: 1, max: 2 },
@@ -165,6 +168,21 @@
     { id: 'glass', rarity: 2, max: 1 },
     { id: 'bloodpact', rarity: 2, max: 1 },
     { id: 'echo', rarity: 2, max: 2 },
+    { id: 'reach', rarity: 0, max: 2 },
+    { id: 'secondwind', rarity: 0, max: 1 },
+    { id: 'snare', rarity: 0, max: 2 },
+    { id: 'bastion', rarity: 1, max: 2 },
+    { id: 'laststand', rarity: 1, max: 1 },
+    { id: 'gilded', rarity: 1, max: 1 },
+    { id: 'smite', rarity: 2, max: 2 },
+    { id: 'crown', rarity: 3, max: 1 },
+    { id: 'phoenix', rarity: 3, max: 1 },
+    { id: 'starblade', rarity: 3, max: 1 },
+    { id: 'aura', rarity: 3, max: 1 },
+    { id: 'tempest', rarity: 3, max: 1 },
+    { id: 'favor', rarity: 3, max: 1 },
+    { id: 'rift', rarity: 3, max: 1 },
+    { id: 'treasury', rarity: 3, max: 1 },
     { id: 'bounty', rarity: 0, max: 99, fallback: true },
     { id: 'mend', rarity: 0, max: 99, fallback: true }
   ];
@@ -209,13 +227,17 @@
   /* ======================= derived stats ======================= */
   const lvl = id => G.upgrades[id] || 0;
   const comboStep = () => 10 - 2 * lvl('blade');
-  const comboMult = () => 1 + Math.floor(G.combo / comboStep());
+  const comboMult = () => (1 + Math.floor(G.combo / comboStep())) * (lvl('favor') ? 2 : 1);
   const berserk = () => lvl('berserker') > 0 && G.hp <= 2;
   const scoreMult = () => 1 + 0.3 * lvl('scholar') + 0.75 * lvl('glass') + (berserk() ? 0.6 : 0);
-  const coinMult = () => 1 + 0.5 * lvl('glass');
+  // Foes drop roughly 0.7 coins per coin of loot; Midas and Glass Cannon scale it.
+  const coinMult = () => 0.7 * (1 + 0.25 * lvl('greed')) * (1 + 0.5 * lvl('glass'));
   const bossDmgMult = () => 1 + 0.35 * lvl('executioner');
+  // How far the Dimensional Cut reaches to each side of the knight (world px).
+  const ultReach = () => (lvl('rift') ? Infinity : 200 * (1 + 0.25 * lvl('reach')));
   function addEnergy(v, flat = false) {
-    const m = (1 + 0.4 * lvl('siphon')) * (lvl('bloodpact') ? 2 : 1) * (berserk() ? 1.6 : 1);
+    // Stacked energy upgrades cap at x2.5 so the Cut can't chain into itself.
+    const m = Math.min(2.5, (1 + 0.4 * lvl('siphon')) * (lvl('bloodpact') ? 2 : 1) * (berserk() ? 1.6 : 1));
     G.energy = Math.min(100, G.energy + (flat ? v : v * m));
   }
   function heal(n) {
@@ -232,7 +254,8 @@
       particles: G.particles.filter(p => p.amb),
       stats: { correct: 0, errors: 0, kills: 0, time: 0 },
       steadyCd: 0, aegisLeft: 0, dying: 0, vacuum: false, shop: null, ult: null, upgVersion: G.upgVersion + 1,
-      guardian: 0, killCount: 0, thirst: 0, spawnCount: 0, warpT: 0, camY: 0, knightLift: 0, climbClouds: []
+      guardian: 0, phoenix: 0, killCount: 0, thirst: 0, spawnCount: 0, warpT: 0, camY: 0, knightLift: 0, climbClouds: [],
+      princess: null, gift: null
     });
     G.knight = { flip: false, swing: 0, twitch: 0, hurt: 0, dead: 0 };
   }
@@ -250,14 +273,16 @@
   function startFloor() {
     const f = G.floor;
     const boss = f % 5 === 0;
+    // Past floor 12 speed and crowd size grow slowly: the later floors get longer, not
+    // denser, so there is always time to read a word before its foe arrives.
     G.plan = boss
       ? { boss, count: 0, interval: 2, maxAlive: 4, speed: 1 + f * 0.045 + Math.max(0, f - 20) * 0.02 } // tower lords keep their tuning
       : {
         boss,
         count: Math.min(11 + Math.floor(f * 2.2), 60),
-        interval: Math.max(0.42, 1.55 - f * 0.07),
-        maxAlive: Math.min(4 + Math.floor(f * 0.6), 13),
-        speed: 1.18 + f * 0.06 + Math.max(0, f - 15) * 0.02
+        interval: Math.max(0.65, 1.55 - f * 0.06),
+        maxAlive: Math.min(4 + Math.floor(f * 0.5), 10),
+        speed: 1.18 + Math.min(f, 12) * 0.06 + Math.max(0, f - 12) * 0.02
       };
     G.toSpawn = G.plan.count;
     G.spawnT = 0.9;
@@ -268,9 +293,10 @@
     dcx.clearRect(0, 0, decal.width, decal.height);
     ensureGround();
     G.state = 'playing';
+    if (f % 20 === 0) spawnPrincess();
     if (boss) {
       spawnBoss();
-      banner(t('bossFloor'), t('floorN', { n: f }), 'boss');
+      banner(t('bossFloor'), G.princess ? t('rescueHint') : t('floorN', { n: f }), 'boss');
       audio.startMusic(true);
     } else {
       banner(t('floorN', { n: f }), f === 1 ? t('firstHint') : t('biomes')[biomeIdx(f)], '');
@@ -293,7 +319,7 @@
     G.target = null;
     G.enemies = G.enemies.filter(e => !e.dead);
     G.score += 100 * G.floor;
-    if (lvl('regen')) heal(lvl('regen'));
+    if (lvl('regen') + lvl('crown')) heal(lvl('regen') + lvl('crown'));
     const tr = lvl('treasurer');
     if (tr) {
       const gain = Math.min(Math.floor(G.coins * 0.1 * tr), 12 * tr);
@@ -303,12 +329,70 @@
       }
     }
     audio.floorClear();
-    banner(t('floorCleared', { n: G.floor }), '', 'clear');
+    if (G.princess) {
+      G.clearT = 3; // time for her to walk over before the gift screen
+      banner(t('princessFree', { name: G.princess.name }), t('floorCleared', { n: G.floor }), 'clear');
+    } else banner(t('floorCleared', { n: G.floor }), '', 'clear');
+  }
+
+  /* ======================= princesses (every 20th floor) ======================= */
+  const PRINCESS_NAMES = ['Amara', 'Isolde', 'Leilani', 'Mei', 'Zuri', 'Sofía', 'Anaya', 'Freya', 'Inés', 'Yara',
+    'Aiko', 'Imani', 'Saoirse', 'Valentina', 'Priya', 'Noor', 'Esperanza', 'Ayasha', 'Malia', 'Ingrid'];
+  const CAGE_DX = 96; // she waits in a cage beside the gate while the lord fights
+
+  function spawnPrincess() {
+    const L = TKSprites.princessLooks;
+    const look = { style: pick(L.styles), hair: randi(0, L.hair.length - 1), skin: randi(0, L.skin.length - 1), dress: randi(0, L.dress.length - 1) };
+    const spr = TKSprites.princess(look);
+    G.princess = {
+      spr, name: pick(PRINCESS_NAMES), x: KX + CAGE_DX, y: GROUND_Y + 18, t: 0, caged: true, walk: 0,
+      w: spr.n.width * 2, h: spr.n.height * 2, kind: 'princess', portrait: spr.n.toDataURL()
+    };
+  }
+
+  function freePrincess() {
+    const p = G.princess;
+    if (!p || !p.caged) return;
+    p.caged = false;
+    p.walk = 0.001;
+    p.fromX = p.x;
+    p.fromY = p.y;
+    burst(p.x, p.y - 30, 'cage', 1.6);
+    fxRing(p.x, p.y - 30, GOLD, 50);
+    audio.rescue();
+  }
+
+  function updatePrincess(dt) {
+    const p = G.princess;
+    if (!p) return;
+    p.t += dt;
+    if (p.walk > 0 && p.walk < 1) {
+      p.walk = Math.min(1, p.walk + dt / 1.6);
+      const e = easeInOut(p.walk);
+      p.x = lerp(p.fromX, KX + 34, e);
+      p.y = lerp(p.fromY, KY - 2, e);
+      if (p.walk >= 1) {
+        for (let i = 0; i < 6; i++) floater(p.x + rand(-10, 10), p.y - 50 - i * 6, '♥', '#ff8ab0', 10);
+      }
+    }
+    if (!p.caged && Math.random() < dt * 6) {
+      particle({ x: p.x + rand(-12, 12), y: p.y - rand(10, 46), vx: rand(-6, 6), vy: rand(-26, -10), g: 0, life: rand(0.5, 0.9), c: pick([GOLD, '#fff6c8', '#ff8ab0']), s: 1 });
+    }
+  }
+
+  // She returns home in a shower of light as the knight starts the climb.
+  function dismissPrincess() {
+    const p = G.princess;
+    if (!p) return;
+    burst(p.x, p.y - 26, 'holy', 1.4);
+    fxRing(p.x, p.y - 26, '#fff6c8', 40);
+    G.princess = null;
   }
 
   // The ascent: the knight leaps, the camera rises a full screen up the tower (old terrace
   // drops away, the next one arrives from above), clouds and wind rush past, then he lands.
   function beginClimb() {
+    dismissPrincess();
     G.state = 'climbing';
     G.climb = { t: 0, dur: 2.5, from: G.towerScroll, launched: false, landed: false };
     nextBiome = biomeOf(G.floor + 1);
@@ -425,7 +509,7 @@
     const e = {
       kind, def, x, y, word, typed: 0, w: def.w, h: def.h, elite,
       speed: def.speed * G.plan.speed * rand(0.92, 1.08) * (elite ? 1.2 : 1),
-      t: rand(0, 10), flash: 0, err: 0, kbx: 0, kby: 0, pushes: 0, dead: false, dirty: false, lx: null, ly: null, top: y - def.h
+      t: rand(0, 10), age: 0, flash: 0, err: 0, kbx: 0, kby: 0, pushes: 0, dead: false, dirty: false, lx: null, ly: null, top: y - def.h
     };
     if (kind !== 'fireball') {
       G.spawnCount++;
@@ -446,7 +530,7 @@
       const pack = G.floor >= 2 && Math.random() < Math.min(0.12 + G.floor * 0.025, 0.4) ? randi(2, 3) : 1;
       const n = Math.min(pack, G.toSpawn, G.plan.maxAlive - alive);
       const side = Math.random() < 0.5 ? -1 : 1;
-      for (let i = 0; i < n; i++) spawnEnemy(chooseKind(), { side, lag: i * 20 });
+      for (let i = 0; i < n; i++) spawnEnemy(chooseKind(), { side, lag: i * 30 });
       G.toSpawn -= n;
       G.spawnT = G.plan.interval * rand(0.7, 1.3) * (n > 1 ? 1.4 : 1);
     }
@@ -512,13 +596,14 @@
       if (b.dying <= 0) {
         burst(b.x, b.y - 42, 'boss', 3);
         fxRing(b.x, b.y - 42, '#ffffff', 120);
-        dropCoins(b.x, b.y - 10, 18 + b.idx * 8, false);
+        dropCoins(b.x, b.y - 10, 12 + b.idx * 5, false);
         G.score += 1000 * (b.idx + 1);
         G.flash = reduceMotion ? 0.2 : 0.6;
         G.trauma = 1;
         audio.explode();
         G.boss = null;
         if (lvl('trophy')) heal(2);
+        freePrincess();
         floorCleared();
       }
       return;
@@ -606,20 +691,38 @@
     G.maxCombo = Math.max(G.maxCombo, G.combo);
     G.stats.correct++;
     G.score += Math.round(comboMult() * scoreMult());
-    addEnergy(1.1);
+    addEnergy(0.9);
     if (lvl('flow') && G.combo % 10 === 0) addEnergy(6 * lvl('flow'));
     e.flash = 0.05;
     G.knight.twitch = 0.09;
     if (e.kind !== 'boss') {
-      const dx = e.x - KX, dy = e.y - KY, d = Math.hypot(dx, dy) || 1;
-      e.kbx += (dx / d) * 34;
-      e.kby += (dy / d) * 10;
+      const dx = e.x - KX, dy = e.y - KY, d = Math.hypot(dx, dy) || 1, push = 1 + 0.6 * lvl('bastion');
+      e.kbx += (dx / d) * 34 * push;
+      e.kby += (dy / d) * 10 * push;
     }
     const ly = e.ly ?? e.top - 10;
     for (let i = 0; i < 3; i++) particle({ x: e.lx ?? e.x, y: ly + 6, vx: rand(-50, 50), vy: rand(-60, -10), g: 120, life: rand(0.15, 0.3), c: pick([GOLD, '#ffffff']), s: 1 });
     audio.key(G.combo);
     if (G.combo > 0 && G.combo % 25 === 0) floater(KX, KY - 62, t('combo') + ' ' + G.combo, NEON, 10);
     if (e.typed >= e.word.length) complete(e);
+    const sm = lvl('smite');
+    if (sm && G.combo % (sm >= 2 ? 20 : 25) === 0) smite();
+  }
+
+  // Holy light from above slays the nearest foe outright.
+  function smite() {
+    let near = null, nd = Infinity;
+    for (const o of G.enemies) {
+      if (o.dead || o.kind === 'fireball' || o.x < 0 || o.x > W) continue;
+      const d = Math.hypot(o.x - KX, o.y - KY);
+      if (d < nd) { nd = d; near = o; }
+    }
+    if (!near) return;
+    fxBolt(near.x, -10, near.x, near.y - near.h / 2, GOLD, 7);
+    fxRing(near.x, near.y - near.h / 2, '#fff6c8', 30);
+    G.flash = Math.max(G.flash, 0.1);
+    audio.zap();
+    kill(near, 'smite', 1);
   }
 
   function mistake(tg) {
@@ -666,7 +769,7 @@
     const cy = e.y - e.h / 2;
     burst(e.x, cy, e.def.gore, how === 'ult' ? 1.3 : 1);
     if (!e.def.fly) splat(e.x, e.y, e.def.gore);
-    let n = e.kind === 'fireball' ? 0 : randi(e.def.coins[0], e.def.coins[1]) + lvl('greed') + (e.elite ? 1 : 0);
+    let n = e.kind === 'fireball' ? 0 : randi(e.def.coins[0], e.def.coins[1]) + (e.elite ? 1 : 0);
     if (n && lvl('lucky') && Math.random() < 0.15 * lvl('lucky')) n *= 2;
     n *= coinMult();
     dropCoins(e.x, e.y, Math.floor(n) + (Math.random() < n % 1 ? 1 : 0), e.def.fly);
@@ -677,8 +780,9 @@
     if (big && lvl('giantslayer')) sm *= 1 + 0.5 * lvl('giantslayer');
     const pts = Math.round(e.word.length * 10 * sm);
     G.score += pts;
-    floater(e.x, e.top - 4, '+' + pts, GOLD, 8);
-    addEnergy(3 + (clean ? 3 * lvl('precision') : 0) + (big ? 8 * lvl('giantslayer') : 0));
+    floater(e.x, e.top - 4, '+' + pts, SCORE_C, 10);
+    // Foes cut down by the Dimensional Cut give no energy, so it can't recharge itself.
+    if (how !== 'ult') addEnergy(2.5 + (clean ? 3 * lvl('precision') : 0) + (big ? 8 * lvl('giantslayer') : 0));
     const bt = lvl('bloodthirst');
     if (bt && ++G.thirst >= (bt >= 2 ? 30 : 40)) {
       G.thirst = 0;
@@ -731,6 +835,29 @@
         chip(o, 3, depth);
       }
     }
+    if (lvl('tempest') && G.killCount % 6 === 0) {
+      const opts = G.enemies.filter(o => !o.dead && o !== e && o.x > -20 && o.x < W + 20);
+      if (opts.length) {
+        const o = pick(opts);
+        fxBolt(o.x + rand(-16, 16), -10, o.x, o.y - o.h / 2, '#c79bff', 8);
+        fxRing(o.x, o.y - o.h / 2, '#c79bff', 28);
+        G.flash = Math.max(G.flash, 0.12);
+        audio.zap();
+        kill(o, 'tempest', depth + 1);
+      }
+    }
+    if (lvl('starblade') && how === 'blade' && depth === 0) {
+      let near = null, nd = Infinity;
+      for (const o of G.enemies) {
+        if (o.dead || o === e || o.typed >= o.word.length) continue;
+        const d = Math.hypot(o.x - e.x, o.y - e.y);
+        if (d < nd) { nd = d; near = o; }
+      }
+      if (near) {
+        fxBolt(e.x, cy, near.x, near.y - near.h / 2, '#fff6c8', 5);
+        chip(near, Math.ceil((near.word.length - near.typed) / 2), depth);
+      }
+    }
     const ec = lvl('echo');
     if (ec && depth === 0 && how === 'blade' && Math.random() < 0.12 * ec) {
       const opts = G.enemies.filter(o => !o.dead && o !== e && o.word.length - o.typed <= 5 && o.x > -30 && o.x < W + 30);
@@ -760,12 +887,21 @@
     hitKnight(e.kind === 'golem' ? 2 : 1);
   }
 
+  const GILDED_COST = 20;
   function hitKnight(dmg = 1) {
     if (G.state !== 'playing') return;
     if (G.aegisLeft > 0) {
       G.aegisLeft--;
       fxRing(KX, KY - 20, GOLD, 36);
       floater(KX, KY - 56, t('blocked'), GOLD, 10);
+      audio.block();
+      G.trauma = Math.min(1, G.trauma + 0.2);
+      return;
+    }
+    if (lvl('gilded') && G.coins >= GILDED_COST) {
+      G.coins -= GILDED_COST;
+      fxRing(KX, KY - 20, GOLD, 34);
+      floater(KX, KY - 56, '-' + GILDED_COST + ' ' + t('coins'), GOLD, 10);
       audio.block();
       G.trauma = Math.min(1, G.trauma + 0.2);
       return;
@@ -784,6 +920,7 @@
     G.hurtFlash = 0.6;
     G.trauma = Math.min(1, G.trauma + 0.6);
     if (lvl('timewarp')) G.warpT = 3;
+    if (lvl('secondwind')) addEnergy(35, true);
     audio.hurt();
     burst(KX, KY - 20, 'blood', dmg);
     if (G.hp <= 0) {
@@ -793,6 +930,16 @@
         G.flash = 0.5;
         fxRing(KX, KY - 20, '#fff6c8', 80);
         floater(KX, KY - 62, t('guardianSave'), '#fff6c8', 12);
+        audio.block();
+        return;
+      }
+      if (G.phoenix > 0) {
+        G.phoenix--;
+        G.hp = G.maxHp;
+        G.flash = 0.6;
+        burst(KX, KY - 20, 'fire', 2.5);
+        fxRing(KX, KY - 20, '#ff7a1a', 90);
+        floater(KX, KY - 62, t('phoenixSave'), '#ffb347', 12);
         audio.block();
         return;
       }
@@ -823,13 +970,21 @@
       G.flash = reduceMotion ? 0.25 : 0.75;
       G.trauma = 1;
       G.hitStop = Math.max(G.hitStop, 0.12);
-      for (const e of G.enemies) if (!e.dead) kill(e, 'ult');
+      // The Cut slays everything within reach; foes beyond it are only hurled back.
+      const reach = ultReach();
+      for (const e of G.enemies) {
+        if (e.dead) continue;
+        const dx = e.x - KX;
+        if (Math.abs(dx) <= reach) kill(e, 'ult');
+        else {
+          e.kbx = Math.sign(dx) * 320;
+          e.flash = 0.15;
+        }
+      }
       const b = G.boss;
-      if (b && b.intro <= 0 && b.dying <= 0) bossHit(b, 60 * bossDmgMult());
+      if (b && b.intro <= 0 && b.dying <= 0) bossHit(b, 60 * bossDmgMult() * (lvl('rift') ? 2 : 1));
       for (const c of G.coinsArr) c.forced = true;
-      if (G.target && G.target.kind !== 'boss') G.target = null;
-      const oc = lvl('overcharge');
-      if (oc) G.energy = Math.max(G.energy, oc >= 2 ? 55 : 30);
+      if (G.target && G.target.dead) G.target = null;
     }
     if (u.t >= u.dur) G.ult = null;
   }
@@ -852,7 +1007,11 @@
         fxRing(e.x, e.y - e.h / 2, NEON, 40);
         audio.repel();
       }
-      const sp = e.speed * slow * (e === G.target ? glacial : 1);
+      e.age += dt;
+      let sp = e.speed * slow * (e === G.target ? glacial : 1);
+      if (lvl('snare') && e.age < 3) sp *= 1 - 0.2 * lvl('snare');
+      if (lvl('aura') && d < 95) sp *= 0.5;
+      if (lvl('laststand') && G.hp === 1) sp *= 0.7;
       e.x += ((dx / d) * sp + e.kbx) * dt;
       e.y += ((dy / d) * sp + e.kby) * dt;
       const k = Math.exp(-dt * 5);
@@ -1351,6 +1510,16 @@
       const a = (i / 8) * TAU - G.time * 0.6;
       plot(KX + Math.cos(a) * 26, KY + Math.sin(a) * 7, ready ? NEON : '#4a4568');
     }
+    // When the Cut is ready, faint lines on the terrace mark how far it will reach.
+    const reach = ultReach();
+    if (ready && reach < W) {
+      bx.globalAlpha = 0.3 + 0.15 * Math.sin(G.time * 5);
+      for (const s of [-1, 1]) {
+        const x = KX + s * reach;
+        for (let y = GROUND_Y + 14 + (Math.floor(G.time * 8) % 4); y < H - 2; y += 4) plot(x, y, NEON);
+      }
+      bx.globalAlpha = 1;
+    }
   }
 
   function shadow(x, y, w) {
@@ -1456,6 +1625,43 @@
     bx.globalAlpha = 1;
   }
 
+  function drawPrincess(p) {
+    const walking = p.walk > 0 && p.walk < 1;
+    const bob = walking ? -Math.abs(Math.sin(p.t * 9)) * 2 : Math.sin(p.t * 2) * 0.6;
+    shadow(p.x, p.y, p.w);
+    bx.drawImage(p.spr.n, Math.round(p.x - p.w / 2), Math.round(p.y - p.h + bob), p.w, p.h);
+    if (p.caged) drawCage(p);
+  }
+
+  // Iron birdcage: domed bars on a base plate, with a ring on top.
+  function drawCage(p) {
+    const cx = Math.round(p.x), base = Math.round(p.y), hw = 20, top = base - p.h - 10;
+    const domeY = i => top + Math.round(9 - 9 * Math.sqrt(Math.max(0, 1 - (i / (hw + 1)) ** 2)));
+    for (let i = -hw; i <= hw; i += 5) {
+      const y0 = domeY(i);
+      bx.fillStyle = '#2a2c34';
+      bx.fillRect(cx + i + 1, y0 + 1, 1, base - y0 - 1);
+      bx.fillStyle = Math.abs(i) < 8 ? '#b4b8c2' : '#8b8f99';
+      bx.fillRect(cx + i, y0, 1, base - y0);
+    }
+    for (let i = -hw; i <= hw; i++) {
+      plot(cx + i, domeY(i), '#8b8f99');
+      plot(cx + i, base - 20, '#5d616c');
+    }
+    bx.fillStyle = '#5d616c';
+    bx.fillRect(cx - 1, top - 5, 3, 1);
+    bx.fillRect(cx - 2, top - 4, 1, 3);
+    bx.fillRect(cx + 2, top - 4, 1, 3);
+    bx.fillRect(cx, top - 1, 1, 2);
+    bx.fillStyle = '#3a3d46';
+    bx.fillRect(cx - hw - 2, base - 1, hw * 2 + 5, 3);
+    bx.fillStyle = GOLD;
+    bx.fillRect(cx - hw - 2, base - 1, hw * 2 + 5, 1);
+    bx.fillStyle = '#d4a53c';
+    bx.fillRect(cx - 2, base - 22, 4, 4); // padlock
+    plot(cx, base - 21, '#3a2410');
+  }
+
   function drawCoins() {
     for (const c of G.coinsArr) {
       if (!c.forced && !G.vacuum && c.t > 6 && Math.floor(G.time * 10) % 2) continue;
@@ -1500,11 +1706,13 @@
     }
     const list = G.enemies.filter(e => !e.dead);
     if (G.boss) list.push(G.boss);
+    if (G.princess) list.push(G.princess);
     list.push({ kind: 'knight', y: KY });
     list.sort((a, b) => a.y - b.y);
     for (const e of list) {
       if (e.kind === 'knight') drawKnight();
       else if (e.kind === 'boss') drawBoss(e);
+      else if (e.kind === 'princess') drawPrincess(e);
       else drawEnemy(e);
     }
     drawCoins();
@@ -1758,19 +1966,29 @@
     ctx.globalCompositeOperation = 'source-over';
   }
 
+  // Numbers pop in slightly oversized, with a thick rounded outline and a hard drop
+  // shadow (like the pixel HUD) so they stay readable over busy art.
   function drawFloaters() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '0.4px';
     for (const f of G.floaters) {
       const p = 1 - f.life / f.max;
-      ctx.globalAlpha = clamp(f.life / f.max * 2, 0, 1);
-      ctx.font = `700 ${f.size * (p < 0.15 ? 0.7 + p * 2 : 1)}px ${FONT}`;
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = 'rgba(5,4,10,0.85)';
+      ctx.globalAlpha = clamp(f.life / f.max * 2.5, 0, 1);
+      const num = /^[+-]\d/.test(f.text);
+      const fs = f.size * (num ? 1.3 : 1) * (p < 0.12 ? 1.3 - p * 2.5 : 1);
+      ctx.font = num ? `400 ${fs}px ${NUM_FONT}` : `700 ${fs}px ${FONT}`;
+      ctx.fillStyle = 'rgba(5,4,10,0.9)';
+      ctx.fillText(f.text, f.x, f.y + 1.3);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(5,4,10,0.92)';
       ctx.strokeText(f.text, f.x, f.y);
       ctx.fillStyle = f.c;
       ctx.fillText(f.text, f.x, f.y);
     }
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+    ctx.lineJoin = 'miter';
     ctx.globalAlpha = 1;
   }
 
@@ -1807,6 +2025,19 @@
       ctx.moveTo(-20, y0 + off);
       ctx.lineTo(lerp(-20, W + 20, reach), lerp(y0, y1, reach) + off);
       ctx.stroke();
+    }
+    const r = ultReach();
+    if (r < W && p >= 0.15) {
+      const k = Math.sin(clamp((p - 0.15) / 0.8, 0, 1) * Math.PI);
+      ctx.strokeStyle = `rgba(89,243,255,${0.85 * k})`;
+      ctx.lineWidth = 2;
+      for (const s of [-1, 1]) {
+        const x = KX + s * r, y = lerp(y0, y1, (x + 20) / (W + 40));
+        ctx.beginPath();
+        ctx.moveTo(x, y - 22 * k);
+        ctx.lineTo(x, y + 22 * k);
+        ctx.stroke();
+      }
     }
     ctx.globalCompositeOperation = 'source-over';
   }
@@ -1887,11 +2118,16 @@
       updateSpawner(sdt);
       updateBoss(sdt);
       updateEnemies(sdt);
+      updatePrincess(sdt);
       faceThreat();
     } else if (G.state === 'floorclear') {
       updateBoss(sdt);
+      updatePrincess(sdt);
       G.clearT -= dt;
-      if (G.clearT <= 0 && (G.coinsArr.length === 0 || G.clearT < -2)) openShop();
+      if (G.clearT <= 0 && (G.coinsArr.length === 0 || G.clearT < -2)) {
+        if (G.princess && !G.princess.gifted) openGift();
+        else openShop();
+      }
     } else if (G.state === 'climbing') {
       updateClimb(dt);
     } else if (G.state === 'dying') {
@@ -1900,8 +2136,9 @@
       sdt *= 0.3;
       if (G.dying <= 0) showGameOver();
     }
-    if (G.state !== 'paused' && G.state !== 'shop') updateCoins(sdt);
-    updateParticles(G.state === 'paused' || G.state === 'shop' ? dt * 0.25 : sdt);
+    const menu = G.state === 'paused' || G.state === 'shop' || G.state === 'gift';
+    if (!menu) updateCoins(sdt);
+    updateParticles(menu ? dt * 0.25 : sdt);
     for (const f of G.fx) f.life -= dt;
     G.fx = G.fx.filter(f => f.life > 0);
     for (const f of G.floaters) {
@@ -2030,23 +2267,28 @@
     }
   }
 
-  function banner(title, sub, kind) {
-    const el = $('banner');
-    // Blackletter numerals are hard to read ("1" looks like "ı"): set digits in the pixel face.
-    $('bannerTitle').replaceChildren(...title.split(/(\d+)/).filter(Boolean).map(part => {
+  // Blackletter and Pixelify numerals are hard to read ("1" looks like "ı", "5" like "8"):
+  // set digits in the numeric face.
+  function withNums(text) {
+    return text.split(/(\d+)/).filter(Boolean).map(part => {
       if (!/^\d+$/.test(part)) return document.createTextNode(part);
       const s = document.createElement('span');
       s.className = 'num';
       s.textContent = part;
       return s;
-    }));
+    });
+  }
+
+  function banner(title, sub, kind) {
+    const el = $('banner');
+    $('bannerTitle').replaceChildren(...withNums(title));
     $('bannerSub').textContent = sub || '';
     el.dataset.kind = kind || '';
     pulse(el, 'show');
   }
 
   /* ======================= screens ======================= */
-  const screens = ['scrTitle', 'scrPause', 'scrShop', 'scrOver'].map($);
+  const screens = ['scrTitle', 'scrPause', 'scrShop', 'scrGift', 'scrOver'].map($);
   function show(el, focusSel) {
     el.classList.add('open');
     el.removeAttribute('inert');
@@ -2095,12 +2337,12 @@
     audio.duckMusic(0.55);
   }
 
-  const haggle = () => 1 - 0.25 * lvl('haggler');
+  const haggle = () => (1 - 0.25 * lvl('haggler')) * (lvl('treasury') ? 0.5 : 1);
   function rerollCost() { return Math.round((5 + G.floor * 3 + G.shop.rerolls * 8) * haggle()); }
   function potionCost() { return Math.round((10 + G.floor * 2) * haggle()); }
 
   function rollOffers() {
-    const avail = UPGRADES.filter(u => !u.fallback && lvl(u.id) < u.max);
+    const avail = UPGRADES.filter(u => !u.fallback && u.rarity < 3 && lvl(u.id) < u.max);
     const weights = G.floor >= 10 ? [50, 35, 15] : [62, 28, 10];
     const out = [];
     while (out.length < 3 && avail.length) {
@@ -2116,6 +2358,42 @@
     const fb = ['bounty', 'mend'];
     while (out.length < 3) out.push(fb[out.length % 2]);
     return out;
+  }
+
+  function rollLegendary() {
+    const out = shuffle(UPGRADES.filter(u => u.rarity === 3 && lvl(u.id) < u.max)).slice(0, 3).map(u => u.id);
+    const fb = ['bounty', 'mend'];
+    while (out.length < 3) out.push(fb[out.length % 2]);
+    return out;
+  }
+
+  // A rescued princess offers a choice of legendary blessings before the usual shop.
+  function openGift() {
+    const p = G.princess;
+    p.gifted = true;
+    G.state = 'gift';
+    G.gift = { offers: rollLegendary() };
+    G.shopLock = G.time + 0.6;
+    $('giftPortrait').src = p.portrait;
+    renderGift(true);
+    show($('scrGift'), '.card');
+    audio.duckMusic(0.2);
+  }
+
+  function renderGift(animate) {
+    const p = G.princess;
+    $('giftTitle').textContent = t('princessFree', { name: p ? p.name : '' });
+    $('giftCards').replaceChildren(...G.gift.offers.map((id, i) => makeCard(id, i, animate, pickGift)));
+  }
+
+  function pickGift(i) {
+    if (G.state !== 'gift' || G.time < G.shopLock) return;
+    const id = G.gift.offers[i];
+    if (!id) return;
+    applyUpgrade(id);
+    audio.rescue();
+    hideAll();
+    openShop();
   }
 
   function openShop() {
@@ -2135,31 +2413,33 @@
     return e;
   }
 
+  function makeCard(id, i, animate, onPick) {
+    const u = UPG[id];
+    const [name, desc] = t('up')[id];
+    const cur = lvl(id);
+    const b = el('button', `card r${u.rarity}${animate ? ' enter' : ''}`);
+    b.type = 'button';
+    b.style.setProperty('--i', i);
+    const icon = new Image();
+    icon.src = SPR.icons[id];
+    icon.alt = '';
+    icon.className = 'card-icon';
+    b.append(
+      el('span', 'card-key', String(i + 1)),
+      el('span', 'card-rarity', t('rarity' + u.rarity)),
+      icon,
+      el('span', 'card-name', name),
+      el('span', 'card-desc'),
+      el('span', 'card-owned', u.fallback ? '' : cur ? t('owned', { n: cur, m: u.max }) : t('newTag'))
+    );
+    b.querySelector('.card-desc').append(...withNums(desc));
+    b.setAttribute('aria-label', `${i + 1}. ${name}. ${desc}`);
+    b.addEventListener('click', () => onPick(i));
+    return b;
+  }
+
   function renderShop(animate) {
-    const box = $('shopCards');
-    box.replaceChildren(...G.shop.offers.map((id, i) => {
-      const u = UPG[id];
-      const [name, desc] = t('up')[id];
-      const cur = lvl(id);
-      const b = el('button', `card r${u.rarity}${animate ? ' enter' : ''}`);
-      b.type = 'button';
-      b.style.setProperty('--i', i);
-      const icon = new Image();
-      icon.src = SPR.icons[id];
-      icon.alt = '';
-      icon.className = 'card-icon';
-      b.append(
-        el('span', 'card-key', String(i + 1)),
-        el('span', 'card-rarity', t('rarity' + u.rarity)),
-        icon,
-        el('span', 'card-name', name),
-        el('span', 'card-desc', desc),
-        el('span', 'card-owned', u.fallback ? '' : cur ? t('owned', { n: cur, m: u.max }) : t('newTag'))
-      );
-      b.setAttribute('aria-label', `${i + 1}. ${name}. ${desc}`);
-      b.addEventListener('click', () => pickCard(i));
-      return b;
-    }));
+    $('shopCards').replaceChildren(...G.shop.offers.map((id, i) => makeCard(id, i, animate, pickCard)));
     const rc = rerollCost(), pc = potionCost();
     $('shopCoins').textContent = G.coins;
     $('rerollCost').textContent = rc;
@@ -2171,10 +2451,7 @@
     $('potionNote').textContent = full ? t('healthFull') : G.coins < pc ? t('needCoins') : t('potionDesc');
   }
 
-  function pickCard(i) {
-    if (G.state !== 'shop' || G.time < G.shopLock) return;
-    const id = G.shop.offers[i];
-    if (!id) return;
+  function applyUpgrade(id) {
     if (id === 'bounty') G.coins += 25;
     else if (id === 'mend') heal(2);
     else {
@@ -2186,8 +2463,20 @@
         G.maxHp--;
         G.hp = Math.min(G.hp, G.maxHp);
       } else if (id === 'guardian') G.guardian = 1;
+      else if (id === 'phoenix') G.phoenix = 2;
+      else if (id === 'crown') {
+        G.maxHp += 2;
+        heal(G.maxHp);
+      } else if (id === 'treasury') G.coins += 120;
       G.upgVersion++;
     }
+  }
+
+  function pickCard(i) {
+    if (G.state !== 'shop' || G.time < G.shopLock) return;
+    const id = G.shop.offers[i];
+    if (!id) return;
+    applyUpgrade(id);
     audio.pick();
     hideAll();
     beginClimb();
@@ -2262,6 +2551,7 @@
     for (const k in cache) delete cache[k];
     renderBest();
     if (G.state === 'shop') renderShop(false);
+    if (G.state === 'gift') renderGift(false);
   }
 
   function setLang(l) {
@@ -2314,6 +2604,13 @@
         } else if (k === 'p' || k === 'P') {
           e.preventDefault();
           buyPotion();
+        }
+        return;
+      case 'gift':
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (k === '1' || k === '2' || k === '3') {
+          e.preventDefault();
+          pickGift(+k - 1);
         }
         return;
       case 'gameover':
@@ -2404,6 +2701,7 @@
       for (const c of G.coinsArr) c.x += shift;
       for (const p of G.particles) p.x += shift;
       if (G.boss) { G.boss.x += shift; }
+      if (G.princess) { G.princess.x += shift; G.princess.fromX += shift; }
     }
     buf.width = W;
     decal.width = W;
@@ -2438,16 +2736,18 @@
   applyI18n();
   hide($('scrPause'));
   hide($('scrShop'));
+  hide($('scrGift'));
   hide($('scrOver'));
   show($('scrTitle'), '#btnStart');
   const fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
   fontsReady.then(() => offCache.clear());
+  if (document.fonts) document.fonts.load('20px "Jersey 10"').catch(() => {}); // canvas floaters need it before the HUD shows
   requestAnimationFrame(t0 => {
     last = t0;
     requestAnimationFrame(frame);
   });
 
   if (/[?&]debug\b/.test(location.search)) {
-    window.__tk = { G, typeChar, startRun, tryUltimate, pickCard, bank, spawnEnemy, onKey };
+    window.__tk = { G, typeChar, startRun, tryUltimate, pickCard, pickGift, bank, spawnEnemy, onKey, startFloor };
   }
 })();

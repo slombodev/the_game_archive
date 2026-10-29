@@ -9,7 +9,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Cpath fill='%2307060d' d='M0 0h16v16H0z'/%3E%3Cpath fill='%23eef4ff' d='M12 2h2v2h-1v1h-1v1h-1v1h-1v1H9v1H8V8h1V7h1V6h1V5h1z'/%3E%3Cpath fill='%23f2c14e' d='M4 8h2v1h1v1h1v2H7v-1H6v-1H5V9H4zM3 11h2v2H3z'/%3E%3Cpath fill='%2359f3ff' d='M2 13h2v1H2z'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Jacquarda+Bastarda+9&family=Pixelify+Sans:wght@400..700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Jacquarda+Bastarda+9&family=Jersey+10&family=Pixelify+Sans:wght@400..700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com/3.4.16"></script>
   <script>
     tailwind.config = {
@@ -32,6 +32,8 @@
       --ink: #07060d; --panel: rgba(13, 10, 26, .88); --line: rgba(255, 255, 255, .12);
       --text: #ece8f4; --mute: #9c95b0;
       --ease-out: cubic-bezier(.22, 1, .36, 1);
+      /* Pixelify's bold digits blur together (2/3/5 read as 8/6); numbers use Jersey 10. */
+      --num: 'Jersey 10', 'Pixelify Sans', ui-monospace, monospace;
     }
     html, body { height: 100%; margin: 0; background: var(--ink); }
     body { color: var(--text); font-family: 'Pixelify Sans', ui-monospace, monospace; -webkit-font-smoothing: antialiased; }
@@ -44,7 +46,7 @@
 
     /* ---------- shared bits ---------- */
     .lbl { font-family: Silkscreen, monospace; font-size: calc(var(--u) * 4); letter-spacing: .14em; text-transform: uppercase; color: var(--mute); line-height: 1; }
-    .val { font-size: calc(var(--u) * 9); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+    .val { font-family: var(--num); font-size: calc(var(--u) * 11); font-weight: 400; line-height: .9; font-variant-numeric: tabular-nums; letter-spacing: .04em; text-shadow: 0 calc(var(--u) * .6) 0 rgba(0, 0, 0, .75); }
     .chip {
       background: linear-gradient(180deg, rgba(22, 17, 40, .82), rgba(10, 8, 20, .74));
       border: 1px solid var(--line); border-radius: calc(var(--u) * 2.5);
@@ -62,10 +64,10 @@
 
     /* ---------- HUD ---------- */
     .hud-top { position: absolute; top: calc(var(--u) * 5); left: calc(var(--u) * 7); right: calc(var(--u) * 7); display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: calc(var(--u) * 4); }
-    .floor-num { font-size: calc(var(--u) * 11); font-weight: 700; line-height: .9; color: #fff; text-shadow: 0 0 calc(var(--u) * 4) rgba(89, 243, 255, .35); }
+    .floor-num { font-family: var(--num); font-size: calc(var(--u) * 14); font-weight: 400; letter-spacing: .04em; line-height: .9; color: #fff; text-shadow: 0 0 calc(var(--u) * 4) rgba(89, 243, 255, .35); }
     .prog { position: relative; height: calc(var(--u) * 1.6); width: calc(var(--u) * 44); background: rgba(255, 255, 255, .08); border-radius: 99px; overflow: hidden; margin-top: calc(var(--u) * 2.2); }
     .prog > i { position: absolute; inset: 0; transform-origin: left; transform: scaleX(0); background: linear-gradient(90deg, #3aa6c0, var(--neon)); transition: transform .3s var(--ease-out); }
-    .mult { font-size: calc(var(--u) * 15); font-weight: 700; line-height: .85; color: #fff; display: inline-block; transition: color .2s, text-shadow .2s; }
+    .mult { font-family: var(--num); font-size: calc(var(--u) * 18); font-weight: 400; line-height: .85; color: #fff; display: inline-block; transition: color .2s, text-shadow .2s; }
     .mult.hot { color: var(--gold); text-shadow: 0 0 calc(var(--u) * 5) rgba(255, 207, 90, .55); }
     .mult.pulse { animation: pop .32s var(--ease-out); }
     @keyframes pop { 0% { transform: scale(1.35); } 100% { transform: scale(1); } }
@@ -112,15 +114,16 @@
     .up-chip { position: relative; width: calc(var(--u) * 10); height: calc(var(--u) * 10); display: grid; place-items: center; border-radius: calc(var(--u) * 1.8); background: rgba(14, 11, 26, .8); border: 1px solid var(--line); }
     .up-chip.r1 { border-color: rgba(89, 243, 255, .45); }
     .up-chip.r2 { border-color: rgba(255, 79, 216, .55); }
+    .up-chip.r3 { border-color: rgba(255, 207, 90, .75); box-shadow: 0 0 calc(var(--u) * 2.4) rgba(255, 207, 90, .45); }
     .up-chip img { width: calc(var(--u) * 6.4); height: calc(var(--u) * 6.4); image-rendering: pixelated; }
     .up-chip b { position: absolute; right: calc(var(--u) * -1.4); bottom: calc(var(--u) * -1.4); min-width: calc(var(--u) * 4.6); height: calc(var(--u) * 4.6); border-radius: 99px; display: grid; place-items: center; font-size: calc(var(--u) * 3.2); font-family: Silkscreen, monospace; background: var(--gold); color: #1a1206; }
     .stats-mini { display: flex; gap: calc(var(--u) * 5); align-items: baseline; }
-    .stats-mini .val { font-size: calc(var(--u) * 6.5); }
+    .stats-mini .val { font-size: calc(var(--u) * 8); }
 
     /* ---------- banner ---------- */
     .banner { position: absolute; left: 0; right: 0; top: 30%; text-align: center; opacity: 0; pointer-events: none; padding: calc(var(--u) * 5) 0 calc(var(--u) * 6); }
     .banner::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, transparent, rgba(7, 6, 13, .72) 30%, rgba(7, 6, 13, .72) 70%, transparent); }
-    .banner .num { font-family: 'Pixelify Sans', monospace; font-weight: 700; font-size: .78em; vertical-align: .06em; }
+    .banner .num { font-family: var(--num); font-weight: 400; font-size: .9em; letter-spacing: .04em; vertical-align: .02em; }
     .banner.show { animation: banner 2.3s var(--ease-out) forwards; }
     @keyframes banner { 0% { opacity: 0; transform: translateY(calc(var(--u) * 6)) scale(.98); letter-spacing: .02em; } 14% { opacity: 1; transform: none; } 78% { opacity: 1; } 100% { opacity: 0; transform: translateY(calc(var(--u) * -4)); } }
     .banner h2 { font-family: 'Jacquarda Bastarda 9', serif; font-weight: 400; font-size: calc(var(--u) * 22); line-height: 1; color: #fff; text-shadow: 0 0 calc(var(--u) * 6) rgba(89, 243, 255, .45), 0 calc(var(--u) * 1) 0 #000; margin: 0; }
@@ -196,25 +199,40 @@
     .card.r2:hover, .card.r2:focus-visible { border-color: var(--magenta); box-shadow: 0 0 calc(var(--u) * 9) rgba(255, 79, 216, .35); }
     .card.enter { animation: deal .45s var(--ease-out) backwards; animation-delay: calc(var(--i) * 70ms); }
     @keyframes deal { from { opacity: 0; transform: translateY(calc(var(--u) * 6)) scale(.96); } }
+    .card.r3 { border-color: rgba(255, 207, 90, .6); background: linear-gradient(180deg, rgba(66, 46, 18, .96), rgba(24, 16, 10, .96)); box-shadow: 0 0 calc(var(--u) * 6) rgba(255, 207, 90, .2); }
+    .card.r3:hover, .card.r3:focus-visible { border-color: var(--gold); box-shadow: 0 0 calc(var(--u) * 11) rgba(255, 207, 90, .45); }
     .card-key { position: absolute; top: calc(var(--u) * 2.4); left: calc(var(--u) * 2.4); }
     .card-key { min-width: calc(var(--u) * 7); height: calc(var(--u) * 7); display: grid; place-items: center; border-radius: calc(var(--u) * 1.4); font-family: Silkscreen, monospace; font-size: calc(var(--u) * 3.8); background: rgba(0, 0, 0, .45); border: 1px solid rgba(255, 255, 255, .16); }
     .card-rarity { font-family: Silkscreen, monospace; font-size: calc(var(--u) * 3.4); letter-spacing: .16em; text-transform: uppercase; color: var(--mute); }
     .card.r1 .card-rarity { color: var(--neon); }
     .card.r2 .card-rarity { color: var(--magenta); }
+    .card.r3 .card-rarity { color: var(--gold); }
     .card-icon { width: calc(var(--u) * 20); height: calc(var(--u) * 20); image-rendering: pixelated; margin: calc(var(--u) * 1.4) 0; filter: drop-shadow(0 calc(var(--u) * 1) 0 rgba(0, 0, 0, .6)); }
     .card-name { font-size: calc(var(--u) * 7); font-weight: 700; line-height: 1.05; color: #fff; }
     .card-desc { font-size: calc(var(--u) * 4.6); line-height: 1.35; color: #cfc8df; min-height: 2.7em; }
+    .card-desc .num { font-family: var(--num); font-size: 1.3em; line-height: 1; letter-spacing: .04em; color: #fff; }
     .card-owned { font-family: Silkscreen, monospace; font-size: calc(var(--u) * 3.2); letter-spacing: .1em; color: var(--gold); text-transform: uppercase; margin-top: auto; }
     .shop-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: calc(var(--u) * 3); margin-top: calc(var(--u) * 5); padding-top: calc(var(--u) * 4.4); border-top: 1px solid var(--line); }
-    .cost { display: inline-flex; align-items: center; gap: calc(var(--u) * 1); color: var(--gold); font-weight: 700; }
+    .cost { display: inline-flex; align-items: center; gap: calc(var(--u) * 1); color: var(--gold); font-family: var(--num); font-size: 1.2em; letter-spacing: .04em; }
     .note { font-size: calc(var(--u) * 3.8); color: var(--mute); }
+
+    /* princess gift */
+    .gift { border-color: rgba(255, 207, 90, .4); box-shadow: 0 calc(var(--u) * 8) calc(var(--u) * 30) rgba(0, 0, 0, .6), 0 0 calc(var(--u) * 18) rgba(255, 207, 90, .16), inset 0 1px 0 rgba(255, 255, 255, .06); }
+    .gift-head { display: flex; align-items: center; gap: calc(var(--u) * 6); }
+    .portrait {
+      flex: none; width: calc(var(--u) * 34); height: calc(var(--u) * 46); display: grid; place-items: center; border-radius: calc(var(--u) * 3);
+      background: radial-gradient(circle at 50% 42%, rgba(255, 207, 90, .38), rgba(255, 138, 176, .12) 55%, transparent 76%), rgba(10, 8, 20, .7);
+      border: 1px solid rgba(255, 207, 90, .45);
+    }
+    .portrait img { width: calc(var(--u) * 24); height: calc(var(--u) * 37.5); image-rendering: pixelated; filter: drop-shadow(0 calc(var(--u) * 1) 0 rgba(0, 0, 0, .6)); }
+    .gift-kicker { font-family: Silkscreen, monospace; font-size: calc(var(--u) * 3.8); letter-spacing: .16em; text-transform: uppercase; color: #ff8ab0; margin: 0 0 calc(var(--u) * 1.6); }
 
     /* game over */
     .over { width: min(92%, calc(var(--u) * 210)); padding: calc(var(--u) * 8); text-align: center; }
     .over h2 { font-family: 'Jacquarda Bastarda 9', serif; font-weight: 400; font-size: calc(var(--u) * 19); line-height: 1; margin: 0; color: #ffd6de; text-shadow: 0 0 calc(var(--u) * 8) rgba(224, 52, 78, .6), 0 calc(var(--u) * 1) 0 #000; }
     .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(var(--u) * 2.4); margin: calc(var(--u) * 6) 0; }
     .stat { padding: calc(var(--u) * 3.6) calc(var(--u) * 2); border-radius: calc(var(--u) * 2.4); background: rgba(255, 255, 255, .04); border: 1px solid var(--line); }
-    .stat .val { display: block; margin-top: calc(var(--u) * 1.6); font-size: calc(var(--u) * 9); }
+    .stat .val { display: block; margin-top: calc(var(--u) * 1.6); font-size: calc(var(--u) * 12); }
     .new-best { display: inline-block; margin-top: calc(var(--u) * 3); padding: calc(var(--u) * 1.4) calc(var(--u) * 3.6); border-radius: 99px; font-family: Silkscreen, monospace; font-size: calc(var(--u) * 3.8); letter-spacing: .14em; text-transform: uppercase; color: #1a1206; background: var(--gold); box-shadow: 0 0 calc(var(--u) * 6) rgba(255, 207, 90, .5); }
 
     .brand {
@@ -323,7 +341,7 @@
             <span data-i18n="sound">Sound</span>: <span data-sound-state>On</span>
           </button>
         </div>
-        <p class="lbl mt-[calc(var(--u)*5)]"><span data-i18n="best">Best</span> · <b id="bestScore" class="text-gold">0</b> · <span id="bestFloor">Floor 0</span></p>
+        <p class="lbl mt-[calc(var(--u)*5)]"><span data-i18n="best">Best</span> · <b id="bestScore" class="text-gold font-[Jersey_10] text-[1.6em] font-normal tracking-wide">0</b> · <span id="bestFloor">Floor 0</span></p>
       </div>
       <div class="rise panel howto absolute left-[calc(var(--u)*7)] bottom-[calc(var(--u)*7)]">
         <h2 data-i18n="howTitle">How to fight</h2>
@@ -387,6 +405,21 @@
             </button>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- ===== Princess gift ===== -->
+    <section id="scrGift" class="screen scrim grid place-items-center" aria-labelledby="giftTitle" role="dialog" aria-modal="true">
+      <div class="rise panel shop gift">
+        <div class="gift-head">
+          <div class="portrait"><img id="giftPortrait" alt=""></div>
+          <div>
+            <p class="gift-kicker" data-i18n="giftKicker">Princess rescued</p>
+            <h2 id="giftTitle"></h2>
+            <p class="shop-sub" data-i18n="giftSub"></p>
+          </div>
+        </div>
+        <div id="giftCards" class="cards"></div>
       </div>
     </section>
 

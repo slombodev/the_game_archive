@@ -225,6 +225,119 @@ window.TKSprites = (() => {
     { a: '#3a2410', A: '#6a4a20', h: '#c89a4a', e: '#ff3b3b', c: '#1a0a0a' }
   ];
 
+  /* ---------------- princesses (front-facing, built per rescue from a look) ---------------- */
+  // Left halves, mirrored. h/H hair, s/S skin, e eyes, b blush, m mouth, d/D/l dress, j jewel.
+  const princessBody = [
+    '..kdlddd',
+    '.kddlddd',
+    'kdddlddd',
+    'kDddlddd',
+    'kDDddddd',
+    'kwwwwwww',
+    '.kkkkkkk'
+  ];
+  const princessStyles = {
+    long: [
+      '.......g',
+      '....g..g',
+      '....gggj',
+      '...kGGGG',
+      '..khhhhh',
+      '.khhhhHh',
+      '.khhHsss',
+      '.khhsess',
+      '.khhsess',
+      '.khhsbss',
+      '.khhsssm',
+      '.khhhSss',
+      'khhhhkSs',
+      'khhhddww',
+      'khhldddj',
+      'khhldddd',
+      'khHdlddd',
+      'khHdlgss',
+      '.kHkdddd'
+    ],
+    curly: [
+      '...hh..g',
+      '..hhhh.g',
+      '.khhgggj',
+      'khhhkGGG',
+      'khHhhhhh',
+      'khhhhHhh',
+      'kHhhHsss',
+      'khhhsess',
+      'khHhsess',
+      'khhhsbss',
+      'kHhhsssm',
+      '.khhhSss',
+      '..kHhkSs',
+      '...kddww',
+      '..kldddj',
+      '..kldddd',
+      '..kdlddd',
+      '..kdlgss',
+      '...kdddd'
+    ],
+    braids: [
+      '.......g',
+      '....g..g',
+      '....gggj',
+      '...kGGGG',
+      '..khhhhh',
+      '..khhHhh',
+      '..khHsss',
+      '..khsess',
+      '..khsess',
+      '..khsbss',
+      '..khsssm',
+      '..khhSss',
+      '..khkkSs',
+      '..khddww',
+      '.klhdddj',
+      '.klHdddd',
+      '.kdhlddd',
+      '.kdHlgss',
+      '..kjdddd'
+    ]
+  };
+  const princessLooks = {
+    styles: Object.keys(princessStyles),
+    hair: [
+      { h: '#f2cf6a', H: '#c4952e' }, // golden blonde
+      { h: '#f4ecd8', H: '#c9bda0' }, // platinum
+      { h: '#3a2f45', H: '#221a2c' }, // black
+      { h: '#4a3224', H: '#2c1c12' }, // dark brown
+      { h: '#7a4a2a', H: '#4a2a16' }, // chestnut
+      { h: '#d8572a', H: '#9a3016' }  // red
+    ],
+    skin: [
+      { s: '#ffe2cc', S: '#e8b496', b: '#f59aa6', m: '#c84a5e' },
+      { s: '#f3c9a2', S: '#d29b72', b: '#ec8a8a', m: '#b8485a' },
+      { s: '#d9a074', S: '#b07650', b: '#d8706a', m: '#9a3a48' },
+      { s: '#b97a4c', S: '#8e5632', b: '#c8605a', m: '#7e2e3a' },
+      { s: '#8d5a36', S: '#653c20', b: '#a84a48', m: '#5e1e2a' },
+      { s: '#6a4228', S: '#4a2c18', b: '#94403e', m: '#3e1218' }
+    ],
+    dress: [
+      { d: '#e86aa0', D: '#a83a6e', l: '#ffb0d0', j: '#59f3ff' }, // rose
+      { d: '#5aa8e8', D: '#2e6aa8', l: '#bfe2ff', j: '#e0344e' }, // sky
+      { d: '#3fb06a', D: '#1f7040', l: '#a8f0c0', j: '#e0344e' }, // emerald
+      { d: '#9a5ae0', D: '#5e2ea0', l: '#d6b8ff', j: '#ffcf5a' }, // violet
+      { d: '#d83a4a', D: '#8e1c2a', l: '#ff9aa4', j: '#59f3ff' }, // crimson
+      { d: '#f0b83a', D: '#b07a1a', l: '#fff0b0', j: '#e0344e' }, // gold
+      { d: '#2ab8b0', D: '#167a74', l: '#a8fff4', j: '#ff4fd8' }, // teal
+      { d: '#efe6d8', D: '#bfae96', l: '#ffffff', j: '#5aa8e8' }, // ivory
+      { d: '#f07a4a', D: '#b04a26', l: '#ffc0a0', j: '#3fb06a' }  // coral
+    ]
+  };
+  function princess(look) {
+    const rows = mirror(princessStyles[look.style].concat(princessBody));
+    const pal = Object.assign({ k: '#140c18', g: '#f2c14e', G: '#b07a1a', e: '#160c16', w: '#fff6e8' },
+      princessLooks.hair[look.hair], princessLooks.skin[look.skin], princessLooks.dress[look.dress]);
+    return variants(raster(rows, pal));
+  }
+
   /* ---------------- coin (spin frames) ---------------- */
   const coinPal = { g: '#b07a1a', G: '#ffcf5a', w: '#fff6c8' };
   const coin = [
@@ -264,7 +377,6 @@ window.TKSprites = (() => {
     piercing: [{ a: '#dfe6f0', b: '#9aa4b8', r: '#e0344e' }, ['......aa', '.....aaa', '....aaa.', '...aaa..', '..bbb...', 'r.bb....', 'rr......', 'rrr.....']],
     bloodthirst: [{ a: '#e0344e', b: '#8e1c32', w: '#ffffff' }, ['ww....ww', 'ww....ww', '.w....w.', '.w....w.', '....a...', '...aaa..', '...aba..', '....a...']],
     momentum: [{ a: '#59f3ff', b: '#2a8aa0' }, ['a...a...', 'aa..aa..', '.aa..aa.', '..aa..aa', '..bb..bb', '.bb..bb.', 'bb..bb..', 'b...b...']],
-    overcharge: [{ a: '#59f3ff', b: '#2a8aa0', w: '#ffffff', k: K }, ['..kkkk..', '.kkkkkk.', '.kwaaak.', '.kaaaak.', '.kbbbbk.', '.kaaaak.', '.kaaaak.', '.kkkkkk.']],
     giantslayer: [{ a: '#9aa4b8', w: '#eef4ff', g: '#8a5a2a', k: K }, ['kkkkkkk.', 'kwwaaak.', 'kaaaaak.', 'kkkgkkk.', '...g....', '...g....', '...g....', '...g....']],
     berserker: [{ a: '#e0344e', k: K, w: '#ffffff' }, ['.aaaaaa.', 'aaaaaaaa', 'akkaakka', 'aawaawaa', 'aaaaaaaa', 'aakkkkaa', 'aakwwkaa', '.aaaaaa.']],
     spiked: [{ a: '#9aa4b8', w: '#eef4ff', k: K }, ['w..w..w.', 'kkkkkkk.', 'kaaaaak.', 'wkawaakw', 'kaaaaak.', '.kaaak..', 'w.kak.w.', '...k....']],
@@ -275,7 +387,22 @@ window.TKSprites = (() => {
     guardian: [{ a: '#fff6c8', b: '#ffcf5a', w: '#ffffff' }, ['..bbbb..', '.b....b.', '..bbbb..', 'w..aa..w', 'ww.aa.ww', 'wwwaawww', '.ww..ww.', '........']],
     glass: [{ a: '#bffaff', b: '#59f3ff', k: K }, ['..kkkk..', '.kaabak.', 'kaabaaak', 'kabaaabk', '.kaaabk.', '..kabk..', '...kk...', '........']],
     bloodpact: [{ a: '#e0344e', w: '#eef4ff', g: '#d4a53c' }, ['......w.', '.....w..', '....w...', '.g.w....', '..g.....', '.g.g....', 'a.......', 'aa......']],
-    echo: [{ a: '#ff4fd8', w: '#ffffff' }, ['.....w.a', '....w.a.', '...w.a..', '..w.a...', '.w.a....', 'w.a.....', '.a......', '........']]
+    echo: [{ a: '#ff4fd8', w: '#ffffff' }, ['.....w.a', '....w.a.', '...w.a..', '..w.a...', '.w.a....', 'w.a.....', '.a......', '........']],
+    bastion: [{ a: '#59f3ff', w: '#ffffff' }, ['..a..a..', '.a....a.', 'a..ww..a', 'a.wwww.a', 'a.wwww.a', 'a..ww..a', '.a....a.', '..a..a..']],
+    reach: [{ a: '#59f3ff', w: '#ffffff' }, ['........', 'a......a', 'aa....aa', 'awwwwwwa', 'aa....aa', 'a......a', '........', '........']],
+    smite: [{ y: '#ffcf5a', w: '#ffffff' }, ['...ww...', '...yy...', '...yy...', '..yyyy..', '...yy...', '..y..y..', '.y....y.', 'yyyyyyyy']],
+    laststand: [{ a: '#e0344e', b: '#8e1c32', k: '#9aa4b8' }, ['kaaaaa..', 'kaabaa..', 'kabbba..', 'kaabaa..', 'kaaaaa..', 'k.......', 'k.......', 'k.......']],
+    gilded: [{ a: '#ffcf5a', b: '#b07a1a', w: '#fff6c8', k: K }, ['.k....k.', 'kak..kak', 'kaakkabk', 'kawaaabk', 'kawaaabk', '.kaaabk.', '.kaaabk.', '..kkkk..']],
+    secondwind: [{ a: '#bfe6ff', b: '#59f3ff' }, ['........', 'aaaaaa..', '......a.', '.bbbbb..', '........', '..aaaaaa', '.a......', '..bbbb..']],
+    snare: [{ a: '#9aa4b8', b: '#5d616c', w: '#eef4ff' }, ['w.w..w.w', 'aaa..aaa', '.a....a.', '.a....a.', '.aaaaaa.', '..bbbb..', '.b....b.', '........']],
+    crown: [{ a: '#ffcf5a', b: '#b07a1a', r: '#e0344e', w: '#fff6c8' }, ['........', 'a..aa..a', 'aa.aa.aa', 'aaaaaaaa', 'arawwara', 'aaaaaaaa', 'bbbbbbbb', '........']],
+    phoenix: [{ a: '#ff7a1a', b: '#ffcf5a', w: '#ffffff' }, ['a......a', 'aa....aa', '.aa..aa.', '..abba..', '..bwwb..', '...bb...', '..b..b..', '.b....b.']],
+    starblade: [{ w: '#eef4ff', g: '#f2c14e', y: '#fff6c8', k: K }, ['y.....kw', '.....kwk', '....kwk.', 'y..kwk..', '.kkwk..y', '.kgk....', 'kgk.y...', 'kk......']],
+    aura: [{ a: '#ffcf5a', w: '#fff6c8' }, ['.aaaaaa.', 'a......a', '.aaaaaa.', '...ww...', '..wwww..', '..wwww..', '.wwwwww.', '.wwwwww.']],
+    tempest: [{ p: '#7a3ab0', w: '#c79bff', y: '#ffdd33' }, ['.pppppp.', 'pppwwppp', '.pppppp.', '...yy...', '..yy....', '.yyyyy..', '....yy..', '...y....']],
+    favor: [{ r: '#e0344e', R: '#8e1c32', g: '#5fae3e' }, ['..rr....', '.rRrr...', '.rrRr...', '..rr....', '...g.g..', '...gg...', '...g....', '...g....']],
+    rift: [{ m: '#ff4fd8', w: '#ffffff', c: '#59f3ff' }, ['......mw', '.....mwc', '....mwc.', '...mwc..', '..mwc...', '.mwc....', 'mwc.....', 'wc......']],
+    treasury: [{ a: '#ffcf5a', b: '#7a4a24', w: '#fff6c8', k: K }, ['.a.a.a..', '.aaaaa..', 'kkkkkkkk', 'kbaaaabk', 'kkkkkkkk', 'kbbwwbbk', 'kbbbbbbk', 'kkkkkkkk']]
   };
 
   function build() {
@@ -295,5 +422,5 @@ window.TKSprites = (() => {
     };
   }
 
-  return { build };
+  return { build, princess, princessLooks };
 })();

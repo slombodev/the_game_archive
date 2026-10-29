@@ -178,6 +178,11 @@ window.TKAudio = class TKAudio {
     if (!this.ok) return;
     [523, 659, 784, 1047].forEach((f, i) => this.tone({ type: 'triangle', f, dur: 0.22, vol: 0.13, when: i * 0.09 }));
   }
+  rescue() {
+    if (!this.ok) return;
+    [659, 784, 988, 1319, 1568].forEach((f, i) => this.tone({ type: 'triangle', f, dur: 0.3, vol: 0.1, when: i * 0.08 }));
+    this.tone({ type: 'sine', f: 2093, dur: 0.5, vol: 0.05, when: 0.4 });
+  }
   pick() {
     if (!this.ok) return;
     this.tone({ type: 'square', f: 784, dur: 0.07, vol: 0.06 });
