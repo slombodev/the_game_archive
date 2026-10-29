@@ -230,11 +230,11 @@
   const comboMult = () => (1 + Math.floor(G.combo / comboStep())) * (lvl('favor') ? 2 : 1);
   const berserk = () => lvl('berserker') > 0 && G.hp <= 2;
   const scoreMult = () => 1 + 0.3 * lvl('scholar') + 0.75 * lvl('glass') + (berserk() ? 0.6 : 0);
-  // Foes drop roughly 0.7 coins per coin of loot; Midas and Glass Cannon scale it.
-  const coinMult = () => 0.7 * (1 + 0.25 * lvl('greed')) * (1 + 0.5 * lvl('glass'));
+  // Foes drop roughly 0.8 coins per coin of loot; Midas and Glass Cannon scale it.
+  const coinMult = () => 0.8 * (1 + 0.25 * lvl('greed')) * (1 + 0.5 * lvl('glass'));
   const bossDmgMult = () => 1 + 0.35 * lvl('executioner');
   // How far the Dimensional Cut reaches to each side of the knight (world px).
-  const ultReach = () => (lvl('rift') ? Infinity : 200 * (1 + 0.25 * lvl('reach')));
+  const ultReach = () => (lvl('rift') ? Infinity : 230 * (1 + 0.25 * lvl('reach')));
   function addEnergy(v, flat = false) {
     // Stacked energy upgrades cap at x2.5 so the Cut can't chain into itself.
     const m = Math.min(2.5, (1 + 0.4 * lvl('siphon')) * (lvl('bloodpact') ? 2 : 1) * (berserk() ? 1.6 : 1));
@@ -282,7 +282,7 @@
         count: Math.min(11 + Math.floor(f * 2.2), 60),
         interval: Math.max(0.65, 1.55 - f * 0.06),
         maxAlive: Math.min(4 + Math.floor(f * 0.5), 10),
-        speed: 1.18 + Math.min(f, 12) * 0.06 + Math.max(0, f - 12) * 0.02
+        speed: 1.13 + Math.min(f, 12) * 0.06 + Math.max(0, f - 12) * 0.02
       };
     G.toSpawn = G.plan.count;
     G.spawnT = 0.9;
@@ -691,7 +691,7 @@
     G.maxCombo = Math.max(G.maxCombo, G.combo);
     G.stats.correct++;
     G.score += Math.round(comboMult() * scoreMult());
-    addEnergy(0.9);
+    addEnergy(1);
     if (lvl('flow') && G.combo % 10 === 0) addEnergy(6 * lvl('flow'));
     e.flash = 0.05;
     G.knight.twitch = 0.09;
@@ -782,7 +782,7 @@
     G.score += pts;
     floater(e.x, e.top - 4, '+' + pts, SCORE_C, 10);
     // Foes cut down by the Dimensional Cut give no energy, so it can't recharge itself.
-    if (how !== 'ult') addEnergy(2.5 + (clean ? 3 * lvl('precision') : 0) + (big ? 8 * lvl('giantslayer') : 0));
+    if (how !== 'ult') addEnergy(3 + (clean ? 3 * lvl('precision') : 0) + (big ? 8 * lvl('giantslayer') : 0));
     const bt = lvl('bloodthirst');
     if (bt && ++G.thirst >= (bt >= 2 ? 30 : 40)) {
       G.thirst = 0;
