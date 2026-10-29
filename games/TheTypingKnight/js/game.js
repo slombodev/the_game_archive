@@ -280,9 +280,9 @@
       : {
         boss,
         count: Math.min(11 + Math.floor(f * 2.2), 60),
-        interval: Math.max(0.65, 1.55 - f * 0.06),
-        maxAlive: Math.min(4 + Math.floor(f * 0.5), 10),
-        speed: 1.13 + Math.min(f, 12) * 0.06 + Math.max(0, f - 12) * 0.02
+        interval: Math.max(0.85, 1.7 - f * 0.05),
+        maxAlive: Math.min(3 + Math.floor(f * 0.35), 7),
+        speed: 1.08 + Math.min(f, 12) * 0.05 + Math.max(0, f - 12) * 0.015
       };
     G.toSpawn = G.plan.count;
     G.spawnT = 0.9;
@@ -293,7 +293,7 @@
     dcx.clearRect(0, 0, decal.width, decal.height);
     ensureGround();
     G.state = 'playing';
-    if (f % 20 === 0) spawnPrincess();
+    if (f % 10 === 0) spawnPrincess();
     if (boss) {
       spawnBoss();
       banner(t('bossFloor'), G.princess ? t('rescueHint') : t('floorN', { n: f }), 'boss');
@@ -527,7 +527,7 @@
     if (G.toSpawn > 0 && alive === 0 && G.spawnT > 0.4) G.spawnT = 0.4;
     if (G.toSpawn > 0 && G.spawnT <= 0 && alive < G.plan.maxAlive) {
       // Packs: several foes rush in from the same side.
-      const pack = G.floor >= 2 && Math.random() < Math.min(0.12 + G.floor * 0.025, 0.4) ? randi(2, 3) : 1;
+      const pack = G.floor >= 2 && Math.random() < Math.min(0.08 + G.floor * 0.02, 0.28) ? randi(2, 3) : 1;
       const n = Math.min(pack, G.toSpawn, G.plan.maxAlive - alive);
       const side = Math.random() < 0.5 ? -1 : 1;
       for (let i = 0; i < n; i++) spawnEnemy(chooseKind(), { side, lag: i * 30 });
