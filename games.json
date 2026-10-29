@@ -1,0 +1,124 @@
+{
+  "store": {
+    "paddle": {
+      "environment": "sandbox",
+      "clientToken": ""
+    }
+  },
+  "games": [
+    {
+      "id": "bossrush-eclipse",
+      "title": "Boss Rush: La Torre del Eclipse",
+      "genre": "Action",
+      "price": 0,
+      "cover": "games/bossrush-eclipse/cover.svg",
+      "background": "games/bossrush-eclipse/background.svg",
+      "released": "2026-10-25",
+      "developer": { "name": "LTK Games" },
+      "description": "El eclipse cubrió el cielo y la Torre despertó. Un boss rush de plataformas donde subís piso por piso peleando cuerpo a cuerpo contra los guardianes de la Torre del Eclipse. Aprendé los patrones de cada jefe, esquivá con el dash, devolvé sus golpes con el parry y no te detengas hasta llegar a la cima.",
+      "requirements": {
+        "OS": "Windows 10/11 64-bit",
+        "Storage": "110 MB"
+      },
+      "download": {
+        "url": "https://github.com/slombodev/tga-downloads/releases/download/games/BossRush-Eclipse.zip",
+        "size": "38 MB",
+        "platform": "Windows (.zip)"
+      }
+    },
+    {
+      "id": "unregistered",
+      "title": "UNREGISTERED",
+      "genre": "Puzzle",
+      "price": 0,
+      "cover": "games/UNREGISTRED/cover.svg",
+      "background": "games/UNREGISTRED/background.svg",
+      "developer": { "name": "SLOMBO GAMES" },
+      "released": "2026-10-22",
+      "description": "Sos una pequeña unidad de mantenimiento que despierta sin número de serie en una ciudad-fundición muerta. El Sol Artificial lleva 312 ciclos apagado y el sistema sólo obedece a unidades registradas. Con tu lente térmica encendés receptores, rebotás haces en espejos y cegás centinelas a lo largo de 12 sectores hasta volver a encender el Sol. Plataformas isométricas 2.5D con puzles de luz, unas 2 horas.",
+      "requirements": {
+        "Plataforma": "Navegador moderno (Chrome, Edge, Firefox)",
+        "Controles": "Teclado y ratón"
+      },
+      "play": {
+        "url": "games/UNREGISTRED/dist/index.html"
+      }
+    },
+    {
+      "id": "keep-digging",
+      "title": "Keep Digging",
+      "genre": "Incremental",
+      "price": 0,
+      "cover": "games/keep-digging/cover.jpg",
+      "background": "games/keep-digging/background.jpg",
+      "developer": { "name": "SLOMBO GAMES" },
+      "released": "2026-10-27",
+      "description": "Picá. Vendé. Mejorá. Llegá al núcleo. Un descenso minero incremental en 3D: cavá, llená la mochila, subí en el elevador, vendé tus minerales y mejorá tu equipo en el taller. Rompé el límite de cada capa (estratos, corteza, cavernas de cristal, jungla subterránea, cámara de magma y el abismo) hasta destruir el núcleo del planeta.",
+      "requirements": {
+        "OS": "Windows 10/11 64-bit",
+        "Storage": "110 MB"
+      },
+      "download": {
+        "url": "https://github.com/slombodev/tga-downloads/releases/download/games/Keep-Digging.zip",
+        "size": "34 MB",
+        "platform": "Windows (.zip)"
+      }
+    },
+    {
+      "id": "overdrive",
+      "title": "OVERDRIVE: Express Delivery",
+      "genre": "Action",
+      "price": 0,
+      "cover": "games/OVERDRIVE/cover.jpg",
+      "background": "games/OVERDRIVE/background.jpg",
+      "developer": { "name": "SLOMBO GAMES" },
+      "released": "2026-10-28",
+      "description": "Sos un mensajero con gancho de agarre y el paquete tiene que llegar ya. Balanceate entre los rascacielos de una ciudad neón, encadená impulsos, esquivá drones y cruzá sector tras sector contra reloj hasta la línea de entrega.",
+      "requirements": {
+        "OS": "Windows 10/11 64-bit",
+        "Storage": "110 MB"
+      },
+      "download": {
+        "url": "https://github.com/slombodev/tga-downloads/releases/download/games/OVERDRIVE-Express-Delivery.zip",
+        "size": "34 MB",
+        "platform": "Windows (.zip)"
+      }
+    },
+    {
+      "id": "the-typing-knight",
+      "title": "The Typing Knight",
+      "genre": "Arcade",
+      "price": 0,
+      "cover": "games/TheTypingKnight/cover.jpg",
+      "background": "games/TheTypingKnight/background.jpg",
+      "developer": { "name": "SLOMBO GAMES" },
+      "released": "2026-10-28",
+      "description": "Escribí para vencer. Ascendé la torre sin fin. Un arcade de mecanografía en pixel art oscuro: escribí la palabra sobre cada enemigo para derribarlo, encadená letras limpias para sumar combo y energía, y desatá el Corte Dimensional cuando la horda te rodee. Elegí bendiciones entre pisos y llegá lo más alto que puedas.",
+      "requirements": {
+        "Plataforma": "Navegador moderno (Chrome, Edge, Firefox)",
+        "Controles": "Teclado"
+      },
+      "play": {
+        "url": "games/TheTypingKnight/index.html"
+      }
+    },
+    {
+      "id": "dont-let-the-aliens-in",
+      "title": "DON'T LET THE ALIENS IN",
+      "genre": "Horror",
+      "price": 0,
+      "cover": "games/DONT_LET_THE_ALIENS_IN/cover.jpg",
+      "background": "games/DONT_LET_THE_ALIENS_IN/background.jpg",
+      "developer": { "name": "SLOMBO GAMES" },
+      "released": "2026-10-28",
+      "description": "Nevada, 1987. Algo salió del Hangar 18 llevando las caras de nuestra gente. Sos el último control antes de los niveles inferiores de la Instalación B-4: revisá cada rostro, cada placa y cada sello, cruzá los datos con el directorio clasificado y frená a los impostores antes de que crucen la puerta. Un juego de terror psicológico en un puesto de control. Contiene sustos repentinos y sirenas.",
+      "requirements": {
+        "Plataforma": "Navegador moderno (Chrome, Edge, Firefox)",
+        "Controles": "Teclado y ratón"
+      },
+      "play": {
+        "url": "games/DONT_LET_THE_ALIENS_IN/index.html"
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360" preserveAspectRatio="xMidYMid slice">
+<defs><radialGradient id="sky" cx=".5" cy=".3" r=".9"><stop offset="0" stop-color="#3a0d1e"/><stop offset=".5" stop-color="#160616"/><stop offset="1" stop-color="#05020a"/></radialGradient>
+<radialGradient id="corona" cx=".5" cy=".5" r=".5"><stop offset=".55" stop-color="#ff7a2e" stop-opacity=".95"/><stop offset=".72" stop-color="#ff3b3b" stop-opacity=".45"/><stop offset="1" stop-color="#ff3b3b" stop-opacity="0"/></radialGradient></defs>
+<rect width="640" height="360" fill="url(#sky)"/>
+<circle cx="320" cy="96" r="78" fill="url(#corona)"/>
+<circle cx="320" cy="96" r="44" fill="#07020a"/>
+<g fill="#ffd9b0"><circle cx="70" cy="60" r="1.2"/><circle cx="560" cy="40" r="1.4"/><circle cx="600" cy="150" r="1"/><circle cx="110" cy="170" r="1"/><circle cx="470" cy="90" r="1.1"/></g>
+<path d="M0 360 V300 L80 280 L150 300 L220 270 L270 290 V360z M370 360 V290 L430 265 L500 295 L560 275 L640 295 V360z" fill="#12050f"/>
+<g fill="#1d0814" stroke="#ff7a2e" stroke-opacity=".35" stroke-width="1.2">
+<path d="M272 360 L286 170 H354 L368 360z"/><path d="M280 176 H360 L352 150 H288z"/><path d="M294 150 L320 112 L346 150z"/></g>
+<g fill="#ff9a4d"><rect x="312" y="200" width="16" height="22" rx="8"/><rect x="304" y="260" width="10" height="14" rx="5" opacity=".8"/><rect x="326" y="290" width="10" height="14" rx="5" opacity=".8"/></g>
+<rect x="0" y="300" width="640" height="60" fill="#000" opacity=".45"/>
+<text x="24" y="331" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="800" letter-spacing="4" fill="#fff" stroke="#ff7a2e" stroke-width=".8">BOSS RUSH</text>
+<text x="26" y="350" font-family="Segoe UI, Arial, sans-serif" font-size="13" letter-spacing="3" fill="#ffb27a">LA TORRE DEL ECLIPSE</text>
+</svg>
