@@ -118,14 +118,17 @@
     blood: ['#e0344e', '#8e1c32', '#ff6a7a'],
     boss: ['#ff2d55', '#4a3a6a', '#d4a53c', '#ffffff'],
     cage: ['#5d616c', '#8b8f99', '#d4a53c', '#ffcf5a'],
-    holy: ['#fff6c8', '#ffcf5a', '#ff8ab0', '#ffffff']
+    holy: ['#fff6c8', '#ffcf5a', '#ff8ab0', '#ffffff'],
+    wood: ['#6e4a2a', '#3f2a18', '#4f9a3a']
   };
   const KINDS = {
     skeleton: { spr: 'skeleton', speed: 21, tier: 'short', fly: false, coins: [1, 2], gore: 'bone', s: 2 },
     goblin: { spr: 'goblin', speed: 25, tier: 'short', fly: false, coins: [1, 2], gore: 'green', s: 2 },
     bat: { spr: 'bat', speed: 38, tier: 'medium', fly: true, coins: [1, 3], gore: 'purple', s: 2 },
     wraith: { spr: 'wraith', speed: 31, tier: 'medium', fly: true, coins: [2, 3], gore: 'ecto', s: 2, alpha: 0.85 },
-    golem: { spr: 'golem', speed: 12, tier: 'long', fly: false, coins: [4, 7], gore: 'stone', s: 2 },
+    golem: { spr: 'golem', speed: 12, tier: 'long', fly: false, coins: [4, 7], gore: 'stone', s: 2, dmg: 2 },
+    // Treant: crawls in with a phrase of several words, barely flinches when hit, hits for 3.
+    treant: { spr: 'treant', speed: 6, tier: 'multi', fly: false, coins: [6, 10], gore: 'wood', s: 2, dmg: 3, kb: 0.25 },
     fireball: { spr: null, speed: 40, tier: 'short', fly: true, coins: [0, 0], gore: 'fire', s: 1, w: 10, h: 12 }
   };
   // rarity: 0 common, 1 rare, 2 epic, 3 legendary (only granted by rescued princesses).
@@ -173,7 +176,6 @@
     { id: 'snare', rarity: 0, max: 2 },
     { id: 'bastion', rarity: 1, max: 2 },
     { id: 'laststand', rarity: 1, max: 1 },
-    { id: 'gilded', rarity: 1, max: 1 },
     { id: 'smite', rarity: 2, max: 2 },
     { id: 'crown', rarity: 3, max: 1 },
     { id: 'phoenix', rarity: 3, max: 1 },
@@ -274,19 +276,22 @@
     const f = G.floor;
     const boss = f % 5 === 0;
     // Past floor 12 speed and crowd size grow slowly: the later floors get longer, not
-    // denser, so there is always time to read a word before its foe arrives.
+    // denser, so there is always time to read a word before its foe arrives. Past floor 20
+    // the pressure ramps again so stacked upgrades can't carry a run forever.
+    const late = Math.max(0, f - 20);
     G.plan = boss
-      ? { boss, count: 0, interval: 2, maxAlive: 4, speed: 1 + f * 0.045 + Math.max(0, f - 20) * 0.02 } // tower lords keep their tuning
+      ? { boss, count: 0, interval: 2, maxAlive: 4, speed: 1 + f * 0.045 + late * 0.02 } // tower lords keep their tuning
       : {
         boss,
         count: Math.min(11 + Math.floor(f * 2.2), 60),
-        interval: Math.max(0.85, 1.7 - f * 0.05),
-        maxAlive: Math.min(3 + Math.floor(f * 0.35), 7),
-        speed: 1.08 + Math.min(f, 12) * 0.05 + Math.max(0, f - 12) * 0.015
+        interval: Math.max(0.85, 1.7 - f * 0.05) - Math.min(0.25, Math.max(0, f - 25) * 0.02),
+        maxAlive: Math.min(3 + Math.floor(f * 0.35), 7) + Math.min(3, Math.floor(late / 6)),
+        speed: 1.08 + Math.min(f, 12) * 0.05 + Math.max(0, f - 12) * 0.015 + Math.max(0, f - 24) * 0.03
       };
     G.toSpawn = G.plan.count;
     G.spawnT = 0.9;
     G.floorDone = 0;
+    G.hurtThisFloor = false;
     G.vacuum = false;
     G.aegisLeft = lvl('aegis');
     if (lvl('warcry')) addEnergy(25 * lvl('warcry'), true);
@@ -319,7 +324,9 @@
     G.target = null;
     G.enemies = G.enemies.filter(e => !e.dead);
     G.score += 100 * G.floor;
-    if (lvl('regen') + lvl('crown')) heal(lvl('regen') + lvl('crown'));
+    // Troll Blood only mends a flawless floor; the Royal Vow always does.
+    const mend = (G.hurtThisFloor ? 0 : lvl('regen')) + lvl('crown');
+    if (mend) heal(mend);
     const tr = lvl('treasurer');
     if (tr) {
       const gain = Math.min(Math.floor(G.coins * 0.1 * tr), 12 * tr);
@@ -489,8 +496,10 @@
     const f = G.floor;
     const wFast = f >= 2 ? Math.min(0.18 + f * 0.035, 0.42) : 0.08;
     const wTank = f >= 3 ? Math.min(0.08 + f * 0.015, 0.25) : 0;
+    const wTreant = f >= 6 ? Math.min(0.04 + f * 0.004, 0.14) : 0;
     const r = Math.random();
-    if (r < wTank) return 'golem';
+    if (r < wTreant) return 'treant';
+    if (r < wTreant + wTank) return 'golem';
     if (r < wTank + wFast) return f >= 5 && Math.random() < 0.45 ? 'wraith' : 'bat';
     return Math.random() < 0.55 ? 'skeleton' : 'goblin';
   }
@@ -502,12 +511,25 @@
     const x = o.x ?? (side < 0 ? -def.w / 2 - 2 - lag : W + def.w / 2 + 2 + lag);
     const y = o.y ?? (def.fly ? rand(96, 178) : rand(GROUND_Y + 22, H - 10));
     // Elites: red outline, faster, a word one tier harder, richer loot.
-    const elite = kind !== 'fireball' && !G.plan.boss && G.floor >= 3 && Math.random() < Math.min(0.04 + G.floor * 0.02, 0.3);
-    const tier = elite ? TIER_UP[tierFor(kind)] : tierFor(kind);
-    const maxLen = tier === 'long' ? Math.min(9 + Math.floor(G.floor / 3), 16) : 99;
-    const word = bank.draw(G.lang, tier, firstLettersInUse(), maxLen);
+    const elite = kind !== 'fireball' && !G.plan.boss && G.floor >= 3 &&
+      Math.random() < Math.min(0.04 + G.floor * 0.02, 0.3 + Math.max(0, G.floor - 20) * 0.01, 0.5);
+    // From floor 25 elites are armored: silver outline, they shrug off half of every
+    // passive letter break and can't be slain outright by Smite, Tempest or Echo.
+    const armored = elite && G.floor >= 25;
+    let word;
+    if (def.tier === 'multi') {
+      // 2 words, 3 from floor 18, 4 from floor 30; elites carry one more.
+      const n = 2 + (G.floor >= 18) + (G.floor >= 30) + (elite ? 1 : 0);
+      const parts = [bank.draw(G.lang, 'short', firstLettersInUse())];
+      while (parts.length < n) parts.push(bank.draw(G.lang, Math.random() < 0.5 ? 'short' : 'medium'));
+      word = parts.join(' ');
+    } else {
+      const tier = elite ? TIER_UP[tierFor(kind)] : tierFor(kind);
+      const maxLen = tier === 'long' ? Math.min(9 + Math.floor(G.floor / 3), 16) : 99;
+      word = bank.draw(G.lang, tier, firstLettersInUse(), maxLen);
+    }
     const e = {
-      kind, def, x, y, word, typed: 0, w: def.w, h: def.h, elite,
+      kind, def, x, y, word, typed: 0, w: def.w, h: def.h, elite, armored,
       speed: def.speed * G.plan.speed * rand(0.92, 1.08) * (elite ? 1.2 : 1),
       t: rand(0, 10), age: 0, flash: 0, err: 0, kbx: 0, kby: 0, pushes: 0, dead: false, dirty: false, lx: null, ly: null, top: y - def.h
     };
@@ -696,7 +718,7 @@
     e.flash = 0.05;
     G.knight.twitch = 0.09;
     if (e.kind !== 'boss') {
-      const dx = e.x - KX, dy = e.y - KY, d = Math.hypot(dx, dy) || 1, push = 1 + 0.6 * lvl('bastion');
+      const dx = e.x - KX, dy = e.y - KY, d = Math.hypot(dx, dy) || 1, push = (1 + 0.6 * lvl('bastion')) * (e.def.kb ?? 1);
       e.kbx += (dx / d) * 34 * push;
       e.kby += (dy / d) * 10 * push;
     }
@@ -713,7 +735,7 @@
   function smite() {
     let near = null, nd = Infinity;
     for (const o of G.enemies) {
-      if (o.dead || o.kind === 'fireball' || o.x < 0 || o.x > W) continue;
+      if (o.dead || o.armored || o.kind === 'fireball' || o.x < 0 || o.x > W) continue;
       const d = Math.hypot(o.x - KX, o.y - KY);
       if (d < nd) { nd = d; near = o; }
     }
@@ -836,7 +858,7 @@
       }
     }
     if (lvl('tempest') && G.killCount % 6 === 0) {
-      const opts = G.enemies.filter(o => !o.dead && o !== e && o.x > -20 && o.x < W + 20);
+      const opts = G.enemies.filter(o => !o.dead && !o.armored && o !== e && o.x > -20 && o.x < W + 20);
       if (opts.length) {
         const o = pick(opts);
         fxBolt(o.x + rand(-16, 16), -10, o.x, o.y - o.h / 2, '#c79bff', 8);
@@ -860,7 +882,7 @@
     }
     const ec = lvl('echo');
     if (ec && depth === 0 && how === 'blade' && Math.random() < 0.12 * ec) {
-      const opts = G.enemies.filter(o => !o.dead && o !== e && o.word.length - o.typed <= 5 && o.x > -30 && o.x < W + 30);
+      const opts = G.enemies.filter(o => !o.dead && !o.armored && o !== e && o.word.length - o.typed <= 5 && o.x > -30 && o.x < W + 30);
       if (opts.length) {
         const o = pick(opts);
         fxBolt(e.x, cy, o.x, o.y - o.h / 2, '#ff4fd8', 5);
@@ -874,6 +896,7 @@
   // Break n letters off a foe's word (Volatile, Chain, Piercing, Storm); may finish it.
   function chip(o, n, depth) {
     if (o.dead) return;
+    if (o.armored) n = Math.floor(n / 2);
     o.typed = Math.min(o.word.length, o.typed + n);
     o.flash = 0.12;
     if (o.typed >= o.word.length) kill(o, 'chip', depth + 1);
@@ -884,10 +907,9 @@
     G.floorDone++;
     if (G.target === e) G.target = null;
     burst(e.x, e.y - e.h / 2, e.def.gore, 0.8);
-    hitKnight(e.kind === 'golem' ? 2 : 1);
+    hitKnight(e.def.dmg || 1);
   }
 
-  const GILDED_COST = 20;
   function hitKnight(dmg = 1) {
     if (G.state !== 'playing') return;
     if (G.aegisLeft > 0) {
@@ -898,16 +920,8 @@
       G.trauma = Math.min(1, G.trauma + 0.2);
       return;
     }
-    if (lvl('gilded') && G.coins >= GILDED_COST) {
-      G.coins -= GILDED_COST;
-      fxRing(KX, KY - 20, GOLD, 34);
-      floater(KX, KY - 56, '-' + GILDED_COST + ' ' + t('coins'), GOLD, 10);
-      audio.block();
-      G.trauma = Math.min(1, G.trauma + 0.2);
-      return;
-    }
     const sp = lvl('spiked');
-    if (sp && Math.random() < (sp >= 2 ? 0.35 : 0.2)) {
+    if (sp && Math.random() < (sp >= 2 ? 0.25 : 0.15)) {
       fxRing(KX, KY - 20, '#dfe6f0', 30);
       floater(KX, KY - 56, t('shrug'), '#dfe6f0', 10);
       audio.block();
@@ -915,6 +929,7 @@
       return;
     }
     G.hp -= dmg;
+    G.hurtThisFloor = true;
     G.combo = 0;
     G.knight.hurt = 0.7;
     G.hurtFlash = 0.6;
@@ -1008,10 +1023,12 @@
         audio.repel();
       }
       e.age += dt;
-      let sp = e.speed * slow * (e === G.target ? glacial : 1);
-      if (lvl('snare') && e.age < 3) sp *= 1 - 0.2 * lvl('snare');
-      if (lvl('aura') && d < 95) sp *= 0.5;
-      if (lvl('laststand') && G.hp === 1) sp *= 0.7;
+      let m = slow * (e === G.target ? glacial : 1);
+      if (lvl('snare') && e.age < 3) m *= 1 - 0.2 * lvl('snare');
+      if (lvl('aura') && d < 95) m *= 0.5;
+      if (lvl('laststand') && G.hp === 1) m *= 0.7;
+      // Stacked slows bottom out at 35% speed so no build can freeze the tower.
+      const sp = e.speed * Math.max(0.35, m);
       e.x += ((dx / d) * sp + e.kbx) * dt;
       e.y += ((dy / d) * sp + e.kby) * dt;
       const k = Math.exp(-dt * 5);
@@ -1603,7 +1620,7 @@
     bx.globalAlpha = def.alpha || 1;
     const ex = Math.round(e.x - e.w / 2), ey = Math.round(y);
     if (e.elite) {
-      const o = left ? fr.of : fr.o;
+      const o = e.armored ? (left ? fr.af : fr.a) : left ? fr.of : fr.o;
       for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) bx.drawImage(o, ex + dx, ey + dy, e.w, e.h);
     }
     bx.drawImage(img, ex, ey, e.w, e.h);
@@ -2636,13 +2653,14 @@
       return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return; // leave browser shortcuts alone
-    // Space types a space only when a boss phrase expects one; otherwise it is the
-    // Dimensional Cut. Enter always casts it, for players mid-phrase.
+    // Space types a space only when a phrase (boss or treant) expects one; otherwise it is
+    // the Dimensional Cut. Enter always casts it, for players mid-phrase.
     if (k === ' ' || k === 'Spacebar' || k === 'Enter') {
       e.preventDefault();
       if (e.repeat) return;
       const tg = G.target;
-      if (k !== 'Enter' && tg && !tg.dead && tg.word[tg.typed] === ' ') typeChar(' ');
+      const wantsSpace = tg && !tg.dead ? tg.word[tg.typed] === ' ' : typeables().some(o => o.word[o.typed] === ' ');
+      if (k !== 'Enter' && wantsSpace) typeChar(' ');
       else tryUltimate();
       return;
     }

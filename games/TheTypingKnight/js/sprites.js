@@ -46,10 +46,10 @@ window.TKSprites = (() => {
     return c;
   }
 
-  // n/f: normal + flipped, w/wf: white hit-flash, o/of: red elite outline.
+  // n/f: normal + flipped, w/wf: white hit-flash, o/of: red elite outline, a/af: silver armored-elite outline.
   function variants(c) {
-    const w = silhouette(c), o = silhouette(c, '#ff2d55');
-    return { n: c, f: flipped(c), w, wf: flipped(w), o, of: flipped(o) };
+    const w = silhouette(c), o = silhouette(c, '#ff2d55'), a = silhouette(c, '#c9d3e0');
+    return { n: c, f: flipped(c), w, wf: flipped(w), o, of: flipped(o), a, af: flipped(a) };
   }
 
   /* ---------------- knight (faces right; sword is drawn procedurally) ---------------- */
@@ -183,6 +183,32 @@ window.TKSprites = (() => {
   const golem = [
     golemTop.concat(mirror(['.....kSSk', '.....kSSk', '.....kDDk', '....kSSSk', '....kkkkk', '.........'])),
     golemTop.concat(mirror(['....kSSk.', '....kSSk.', '....kDDk.', '...kSSSk.', '...kkkkk.', '.........']))
+  ];
+
+  const treantPal = { k: '#120c08', b: '#6e4a2a', B: '#3f2a18', l: '#4f9a3a', L: '#2f6a26', e: '#ffd84a' };
+  const treantTop = mirror([
+    '.....kkkkk',
+    '...kkLllll',
+    '..kLllLlll',
+    '.kLlllllLl',
+    '.kLLllLlll',
+    'kLlLLlllll',
+    'kLLkkLLLLL',
+    '.kk.kkkkkk',
+    '...kbbbbbb',
+    '...kbBbbBb',
+    '...kbbekbb',
+    'kk.kbbbbbb',
+    'kbkkbBbkkk',
+    'kbbbbbbBbb',
+    '.kkkbBbbbb',
+    '...kbbbBbb',
+    '...kbBbbbb',
+    '...kbbbbBb'
+  ]);
+  const treant = [
+    treantTop.concat(mirror(['...kbBbk..', '...kbbbk..', '..kbbBbbk.', '..kkkkkkk.'])),
+    treantTop.concat(mirror(['..kbBbk...', '..kbbbk...', '.kbbBbbk..', '.kkkkkkk..']))
   ];
 
   /* ---------------- boss (symmetric, palette-swapped per tower lord) ---------------- */
@@ -392,7 +418,6 @@ window.TKSprites = (() => {
     reach: [{ a: '#59f3ff', w: '#ffffff' }, ['........', 'a......a', 'aa....aa', 'awwwwwwa', 'aa....aa', 'a......a', '........', '........']],
     smite: [{ y: '#ffcf5a', w: '#ffffff' }, ['...ww...', '...yy...', '...yy...', '..yyyy..', '...yy...', '..y..y..', '.y....y.', 'yyyyyyyy']],
     laststand: [{ a: '#e0344e', b: '#8e1c32', k: '#9aa4b8' }, ['kaaaaa..', 'kaabaa..', 'kabbba..', 'kaabaa..', 'kaaaaa..', 'k.......', 'k.......', 'k.......']],
-    gilded: [{ a: '#ffcf5a', b: '#b07a1a', w: '#fff6c8', k: K }, ['.k....k.', 'kak..kak', 'kaakkabk', 'kawaaabk', 'kawaaabk', '.kaaabk.', '.kaaabk.', '..kkkk..']],
     secondwind: [{ a: '#bfe6ff', b: '#59f3ff' }, ['........', 'aaaaaa..', '......a.', '.bbbbb..', '........', '..aaaaaa', '.a......', '..bbbb..']],
     snare: [{ a: '#9aa4b8', b: '#5d616c', w: '#eef4ff' }, ['w.w..w.w', 'aaa..aaa', '.a....a.', '.a....a.', '.aaaaaa.', '..bbbb..', '.b....b.', '........']],
     crown: [{ a: '#ffcf5a', b: '#b07a1a', r: '#e0344e', w: '#fff6c8' }, ['........', 'a..aa..a', 'aa.aa.aa', 'aaaaaaaa', 'arawwara', 'aaaaaaaa', 'bbbbbbbb', '........']],
@@ -415,6 +440,7 @@ window.TKSprites = (() => {
       bat: bat.map(f => variants(raster(f, batPal))),
       wraith: wraith.map(f => variants(raster(f, wraithPal))),
       golem: golem.map(f => variants(raster(f, golemPal))),
+      treant: treant.map(f => variants(raster(f, treantPal))),
       bosses: bossPalettes.map(p => variants(raster(bossRows, Object.assign({ k: '#07050c', g: '#d4a53c' }, p)))),
       bossEyes: bossPalettes.map(p => p.e),
       coin: coin.map(f => raster(f, coinPal)),
