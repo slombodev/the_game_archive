@@ -1,6 +1,6 @@
 'use strict';
 /*
- * TGA (The Game Archive) — storefront + launcher.
+ * SparkVault (SparkV) — storefront + launcher.
  * The whole library is driven by games.json; see README.md for the schema.
  */
 
@@ -93,7 +93,7 @@ function normalizeGame(g) {
   const isFree = g.price === 0;
   for (const key of ['download', 'play']) {
     if (!isFree && g[key]) {
-      console.warn(`[TGA] "${g.id}": "${key}" ignored on a paid game — a public link would let anyone skip checkout. Deliver paid files through Paddle fulfillment.`);
+      console.warn(`[SparkV] "${g.id}": "${key}" ignored on a paid game — a public link would let anyone skip checkout. Deliver paid files through Paddle fulfillment.`);
     }
   }
   const reqs = g.requirements && typeof g.requirements === 'object' ? g.requirements : {};
@@ -159,7 +159,7 @@ async function loadCatalog() {
   const seen = new Set();
   (Array.isArray(raw?.games) ? raw.games : []).forEach((g, i) => {
     const problem = validateGame(g, seen);
-    if (problem) return console.warn(`[TGA] games.json entry #${i + 1} skipped: ${problem}`);
+    if (problem) return console.warn(`[SparkV] games.json entry #${i + 1} skipped: ${problem}`);
     seen.add(g.id);
     games.push(normalizeGame(g));
   });
@@ -255,6 +255,12 @@ const sfx = (() => {
     error: () => tone(196, 0.2, { type: 'square', gain: 0.015 }),
   };
 
+  // Creating the AudioContext is slow (~20ms+ on phones). Do it on the first press,
+  // so the first click's animation doesn't wait for it.
+  const warm = () => { try { ctx ??= new AudioContext(); } catch { /* audio unsupported */ } };
+  addEventListener('pointerdown', warm, { once: true, capture: true, passive: true });
+  addEventListener('keydown', warm, { once: true, capture: true, passive: true });
+
   return {
     get muted() { return muted; },
     play(name) {
@@ -281,7 +287,7 @@ function startBackground(canvas) {
   let w = 0, h = 0, particles = [], raf = 0;
 
   function resize() {
-    const dpr = Math.min(devicePixelRatio || 1, 2);
+    const dpr = Math.min(devicePixelRatio || 1, 1.5);
     w = innerWidth; h = innerHeight;
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
@@ -335,6 +341,7 @@ function startBackground(canvas) {
   function loop(time) { draw(time); raf = requestAnimationFrame(loop); }
   function sync() {
     cancelAnimationFrame(raf);
+    if (document.documentElement.classList.contains('locked')) return; // the game page covers it
     if (reducedMotion.matches || document.hidden) draw(performance.now()); // one static frame
     else raf = requestAnimationFrame(loop);
   }
@@ -342,34 +349,66 @@ function startBackground(canvas) {
   addEventListener('resize', () => { resize(); sync(); });
   document.addEventListener('visibilitychange', sync);
   reducedMotion.addEventListener('change', sync);
+  addEventListener('tga:cover', sync);
   resize();
   sync();
 }
 
-/** Full-page art behind everything; crossfades between two layers so it never flashes. */
+/**
+ * Full-page art behind everything; crossfades between two layers so it never flashes.
+ * Each artwork is blurred once into a tiny image that the GPU stretches to full screen,
+ * instead of running a live CSS blur over the whole viewport on every frame.
+ */
 const backdrop = (() => {
   const layers = [...document.querySelectorAll('#backdrop .bd-layer')];
+  const W = 160, H = 90; // stretched ×10+, so it reads as a soft blur
+  const blurred = new Map(); // art URL → Promise<blob URL>
   let front = 0;
   let current = null;
   let timer = 0;
   let token = 0;
 
-  function show(url) {
+  async function soften(url) {
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = url;
+    await img.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    // object-fit: cover into the small canvas
+    const k = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+    const dw = img.naturalWidth * k, dh = img.naturalHeight * k;
+    ctx.filter = 'blur(2px) saturate(1.25)'; // ignored where unsupported; the downscale alone already softens
+    ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    ctx.filter = 'none';
+    ctx.fillStyle = 'rgba(0, 0, 0, .38)'; // = brightness(.62)
+    ctx.fillRect(0, 0, W, H);
+    const blob = await new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject()), 'image/jpeg', 0.9));
+    return URL.createObjectURL(blob);
+  }
+
+  function softened(url) {
+    if (!blurred.has(url)) {
+      // Cross-origin art without CORS can't be read back: fall back to the original file.
+      blurred.set(url, soften(url).catch(() => url));
+    }
+    return blurred.get(url);
+  }
+
+  async function show(url) {
     if (!url || url === current) return;
     current = url;
     const t = ++token;
+    const src = await softened(url);
+    if (t !== token) return; // a newer request won
     const next = layers[1 - front];
-    const swap = () => {
-      if (t !== token) return; // a newer request won
-      next.classList.add('on');
-      layers[front].classList.remove('on');
-      front = 1 - front;
-    };
-    if (next.src === url && next.complete) swap();
-    else {
-      next.onload = swap;
-      next.src = url;
-    }
+    next.src = src;
+    try { await next.decode(); } catch { /* show it anyway */ }
+    if (t !== token) return;
+    next.classList.add('on');
+    layers[front].classList.remove('on');
+    front = 1 - front;
   }
 
   return {
@@ -443,19 +482,19 @@ const ads = (() => {
 
   // Shown in the hero slot while no ad is configured, so the space never looks empty.
   function housePromo() {
-    const subject = encodeURIComponent('Quiero publicar mi juego en TGA');
+    const subject = encodeURIComponent('Quiero publicar mi juego en SparkVault');
     return [
       el('span', { className: 'ad-icon', innerHTML: iconSvg('all') }),
       el('div', { className: 'ad-body' }, [
         el('strong', { className: 'ad-title', textContent: '¿Hacés juegos?' }),
-        el('span', { className: 'ad-text', textContent: 'Publicá el tuyo en The Game Archive. Es gratis.' }),
+        el('span', { className: 'ad-text', textContent: 'Publicá el tuyo en SparkVault. Es gratis.' }),
       ]),
       el('a', { className: 'btn btn-light btn-sm', href: `mailto:${CONTACT_EMAIL}?subject=${subject}`, textContent: 'Escribinos' }),
     ];
   }
 
   return {
-    /** Renders a slot. With no config, `house` shows the TGA promo; otherwise the slot stays hidden. */
+    /** Renders a slot. With no config, `house` shows the SparkVault promo; otherwise the slot stays hidden. */
     render(box, cfg, { house = false } = {}) {
       box.replaceChildren();
       box.classList.remove('is-house', 'is-custom', 'is-adsense');
@@ -1010,11 +1049,12 @@ function openDetail(game, fromEl, { pushHistory = true } = {}) {
   } else {
     detail.style.removeProperty('--from');
   }
-  detail.hidden = false;
-  $('app').inert = true;
+  detail.inert = false;
   document.documentElement.classList.add('locked');
-  void detail.offsetWidth;
   detail.classList.add('open');
+  // Making the page behind inert restyles all of it; do that after the expand has started.
+  requestAnimationFrame(() => { if (state.detail) $('app').inert = true; });
+  setTimeout(() => dispatchEvent(new Event('tga:cover')), 650); // canvas pauses once fully covered
   $('d-body').scrollTop = 0;
   sfx.play('open');
   syncHeroPause();
@@ -1052,12 +1092,13 @@ function closeDetail({ fromHistory = false } = {}) {
   detail.classList.remove('open');
   $('app').inert = false;
   document.documentElement.classList.remove('locked');
+  dispatchEvent(new Event('tga:cover'));
   sfx.play('back');
   syncHeroPause();
 
   const finish = () => {
     if (state.detail) return;
-    detail.hidden = true;
+    detail.inert = true;
     $('d-trailer').replaceChildren(); // stops a playing trailer
   };
   if (reducedMotion.matches) finish();
@@ -1183,7 +1224,7 @@ async function shareGame() {
   if (!game) return;
   const url = gameUrl(game);
   if (navigator.share && matchMedia('(pointer: coarse)').matches) {
-    try { await navigator.share({ title: game.title, text: `${game.title} en The Game Archive`, url }); } catch { /* cancelled */ }
+    try { await navigator.share({ title: game.title, text: `${game.title} en SparkVault`, url }); } catch { /* cancelled */ }
     return;
   }
   try {
@@ -1416,7 +1457,7 @@ async function boot() {
   try {
     catalog = await loadCatalog();
   } catch (err) {
-    console.error('[TGA]', err);
+    console.error('[SparkV]', err);
     const hint = location.protocol === 'file:'
       ? [el('span', { textContent: 'El navegador no deja leer games.json desde un archivo local. Abrí ' }), el('code', { textContent: 'start.bat' }), el('span', { textContent: ' y entrá a la dirección que muestra.' })]
       : [el('span', { textContent: err.message })];
