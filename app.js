@@ -1,13 +1,36 @@
 'use strict';
 /*
- * TGA (The Game Archive) — XMB-style launcher.
+ * TGA (The Game Archive) — storefront + launcher.
  * The whole library is driven by games.json; see README.md for the schema.
  */
 
+document.documentElement.classList.add('js');
+
 const DATA_URL = 'games.json';
 const PADDLE_SRC = 'https://cdn.paddle.com/paddle/v2/paddle.js';
+const ADSENSE_SRC = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js';
+const CONTACT_EMAIL = 'patrone.webstudio@gmail.com';
 const MONTH_HUES = [215, 200, 145, 95, 55, 185, 225, 170, 280, 30, 330, 5]; // XMB-style monthly tint
-const formatPrice = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+const LOCALE = 'es';
+const NEW_FOR_DAYS = 14;  // a game can show the "Nuevo" tag for this many days after its release date…
+const NEW_MAX = 3;        // …and only the most recent few get it
+const HERO_COUNT = 5;     // newest games shown in the carousel
+const HERO_MS = 7000;     // time per carousel slide
+
+// games.json keeps English genre keys (they also pick the icon); the page shows them in Spanish.
+const GENRES = {
+  action: 'Acción', adventure: 'Aventura', arcade: 'Arcade', horror: 'Terror', incremental: 'Incremental',
+  platformer: 'Plataformas', puzzle: 'Puzle', racing: 'Carreras', rpg: 'Rol', shooter: 'Disparos',
+  simulation: 'Simulación', sports: 'Deportes', strategy: 'Estrategia', survival: 'Supervivencia',
+};
+const REQ_LABELS = {
+  os: 'Sistema operativo', storage: 'Espacio en disco', memory: 'Memoria', ram: 'Memoria',
+  cpu: 'Procesador', processor: 'Procesador', gpu: 'Gráficos', graphics: 'Gráficos',
+};
+const genreLabel = (genre) => GENRES[genre.toLowerCase()] ?? genre;
+const reqLabel = (key) => REQ_LABELS[key.toLowerCase()] ?? key;
+const formatPrice = (n) => new Intl.NumberFormat('es-UY', { style: 'currency', currency: 'USD' }).format(n);
+const dateFmt = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });
 const $ = (id) => document.getElementById(id);
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -25,6 +48,31 @@ function safeUrl(value) {
 }
 
 const isText = (v) => typeof v === 'string' && v.trim() !== '';
+
+/** "2026-10-31" → local Date (no timezone shift), or null. */
+function parseDate(value) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(typeof value === 'string' ? value.trim() : '');
+  if (!m) return null;
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Accepts youtube.com/watch?v=, youtu.be/, /embed/ and /shorts/ links; returns the video id. */
+function youtubeId(value) {
+  if (!isText(value)) return null;
+  try {
+    const u = new URL(value);
+    const host = u.hostname.replace(/^(www|m)\./, '');
+    let id = null;
+    if (host === 'youtu.be') id = u.pathname.slice(1);
+    else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+      id = u.searchParams.get('v') ?? u.pathname.match(/^\/(?:embed|shorts|live)\/([^/?#]+)/)?.[1] ?? null;
+    }
+    return id && /^[\w-]{6,20}$/.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Returns a reason string when the entry is unusable, otherwise null. */
 function validateGame(g, seenIds) {
@@ -47,10 +95,14 @@ function normalizeGame(g) {
     }
   }
   const reqs = g.requirements && typeof g.requirements === 'object' ? g.requirements : {};
+  const releasedDate = parseDate(g.released);
+  const ageDays = releasedDate ? (Date.now() - releasedDate.getTime()) / 864e5 : Infinity;
+  const genre = g.genre.trim();
   return {
     id: g.id,
     title: g.title.trim(),
-    genre: g.genre.trim(),
+    genre,
+    genreLabel: genreLabel(genre),
     description: g.description.trim(),
     price: g.price,
     isFree,
@@ -58,21 +110,48 @@ function normalizeGame(g) {
     background: safeUrl(g.background) ?? safeUrl(g.cover),
     developer: isText(g.developer?.name) ? { name: g.developer.name.trim(), url: safeUrl(g.developer.url) } : null,
     released: isText(g.released) ? g.released : null,
+    releasedDate,
+    isNew: ageDays >= -1 && ageDays <= NEW_FOR_DAYS,
     requirements: Object.entries(reqs).filter(([k, v]) => isText(k) && isText(String(v))).map(([k, v]) => [k, String(v)]),
     download: isFree && safeUrl(g.download?.url) ? { url: safeUrl(g.download.url), size: g.download.size, platform: g.download.platform } : null,
     play: isFree && safeUrl(g.play?.url) ? { url: safeUrl(g.play.url) } : null,
     paddlePriceId: isFree ? null : g.paddlePriceId.trim(),
+    screenshots: (Array.isArray(g.screenshots) ? g.screenshots : []).map(safeUrl).filter(Boolean),
+    trailer: youtubeId(g.trailer),
   };
+}
+
+/** Ad slots: either a Google AdSense unit or a custom image + link. Anything else is ignored. */
+function normalizeAds(raw) {
+  const client = typeof raw?.adsenseClient === 'string' && /^ca-pub-\d{10,20}$/.test(raw.adsenseClient.trim())
+    ? raw.adsenseClient.trim() : null;
+  const slot = (s) => {
+    if (!s || typeof s !== 'object') return null;
+    if (client && /^\d{5,20}$/.test(String(s.adsenseSlot ?? '').trim())) {
+      return { type: 'adsense', client, slot: String(s.adsenseSlot).trim() };
+    }
+    const url = safeUrl(s.url);
+    if (url && (safeUrl(s.image) || isText(s.title))) {
+      return {
+        type: 'custom', url, image: safeUrl(s.image),
+        title: isText(s.title) ? s.title.trim() : '',
+        text: isText(s.text) ? s.text.trim() : '',
+        cta: isText(s.cta) ? s.cta.trim() : 'Ver más',
+      };
+    }
+    return null;
+  };
+  return { hero: slot(raw?.hero), detail: slot(raw?.detail) };
 }
 
 async function loadCatalog() {
   const res = await fetch(DATA_URL, { cache: 'no-cache' });
-  if (!res.ok) throw new Error(`games.json returned HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`games.json respondió HTTP ${res.status}`);
   let raw;
   try {
     raw = await res.json();
   } catch (err) {
-    throw new Error(`games.json is not valid JSON (${err.message})`);
+    throw new Error(`games.json no es un JSON válido (${err.message})`);
   }
   const games = [];
   const seen = new Set();
@@ -82,8 +161,16 @@ async function loadCatalog() {
     seen.add(g.id);
     games.push(normalizeGame(g));
   });
-  return { games, paddle: raw?.store?.paddle ?? {} };
+  // "Nuevo" only means something on a few games: keep the most recent NEW_MAX (ties at the cut drop out).
+  const recent = games.filter((g) => g.isNew).sort(byNewest);
+  if (recent.length > NEW_MAX) {
+    const cutoff = recent[NEW_MAX].releasedDate.getTime();
+    recent.forEach((g) => { if (g.releasedDate.getTime() <= cutoff) g.isNew = false; });
+  }
+  return { games, paddle: raw?.store?.paddle ?? {}, ads: normalizeAds(raw?.ads) };
 }
+
+const byNewest = (a, b) => (b.releasedDate?.getTime() ?? 0) - (a.releasedDate?.getTime() ?? 0);
 
 /* ============================== Categories & icons ============================== */
 
@@ -108,13 +195,23 @@ const ICONS = {
 };
 const iconSvg = (key) => `<svg viewBox="0 0 48 48" aria-hidden="true">${ICONS[key] ?? ICONS.default}</svg>`;
 
+// Line icons for buttons (24×24, stroked).
+const UI_ICONS = {
+  play: '<path class="fill" d="M8 5.5v13l10.5-6.5z"/>',
+  download: '<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14"/>',
+  cart: '<path d="M4 5h2l2 10h10l2-7H7.2"/><circle cx="10" cy="19" r="1.3"/><circle cx="17" cy="19" r="1.3"/>',
+  info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/>',
+  shield: '<path d="M12 3.5l7 2.8v5.4c0 4.3-3 7.6-7 8.8-4-1.2-7-4.5-7-8.8V6.3z"/><path d="M12 8.5v4.5M12 16h.01"/>',
+};
+const uiIcon = (name) => el('span', { className: 'ui-ico', innerHTML: `<svg viewBox="0 0 24 24" aria-hidden="true">${UI_ICONS[name]}</svg>` });
+
 function buildCategories(games) {
-  const genres = [...new Set(games.map((g) => g.genre))].sort((a, b) => a.localeCompare(b));
+  const genres = [...new Set(games.map((g) => g.genre))].sort((a, b) => genreLabel(a).localeCompare(genreLabel(b), LOCALE));
   return [
-    { id: 'all', label: 'All Games', icon: 'all', games },
-    ...genres.map((genre) => ({ id: `genre-${genre}`, label: genre, icon: genre.toLowerCase(), games: games.filter((g) => g.genre === genre) })),
-    { id: 'web', label: 'Web Games', icon: 'web', games: games.filter((g) => g.play) },
-    { id: 'free', label: 'Free', icon: 'free', games: games.filter((g) => g.isFree) },
+    { id: 'all', label: 'Todos', icon: 'all', games },
+    ...genres.map((genre) => ({ id: `genre-${genre}`, label: genreLabel(genre), icon: genre.toLowerCase(), games: games.filter((g) => g.genre === genre) })),
+    { id: 'web', label: 'En el navegador', icon: 'web', games: games.filter((g) => g.play) },
+    { id: 'free', label: 'Gratis', icon: 'free', games: games.filter((g) => g.isFree) },
   ].filter((c) => c.games.length > 0);
 }
 
@@ -167,6 +264,7 @@ const sfx = (() => {
 
 /* ============================== Background ============================== */
 
+/** The XMB ribbon + drifting particles, drawn over the game art backdrop. */
 function startBackground(canvas) {
   const ctx = canvas.getContext('2d');
   let w = 0, h = 0, particles = [], raf = 0;
@@ -237,6 +335,41 @@ function startBackground(canvas) {
   sync();
 }
 
+/** Full-page art behind everything; crossfades between two layers so it never flashes. */
+const backdrop = (() => {
+  const layers = [...document.querySelectorAll('#backdrop .bd-layer')];
+  let front = 0;
+  let current = null;
+  let timer = 0;
+  let token = 0;
+
+  function show(url) {
+    if (!url || url === current) return;
+    current = url;
+    const t = ++token;
+    const next = layers[1 - front];
+    const swap = () => {
+      if (t !== token) return; // a newer request won
+      next.classList.add('on');
+      layers[front].classList.remove('on');
+      front = 1 - front;
+    };
+    if (next.src === url && next.complete) swap();
+    else {
+      next.onload = swap;
+      next.src = url;
+    }
+  }
+
+  return {
+    set(url, { delay = 0 } = {}) {
+      clearTimeout(timer);
+      if (delay) timer = setTimeout(() => show(url), delay);
+      else show(url);
+    },
+  };
+})();
+
 /* ============================== Checkout (Paddle) ============================== */
 
 const checkout = (() => {
@@ -254,7 +387,7 @@ const checkout = (() => {
           resolve(window.Paddle);
         } catch (err) { reject(err); }
       };
-      script.onerror = () => reject(new Error('Paddle could not be loaded. Check your connection.'));
+      script.onerror = () => reject(new Error('No se pudo cargar Paddle. Revisá tu conexión.'));
       document.head.append(script);
     }).catch((err) => { ready = null; throw err; });
     return ready;
@@ -263,7 +396,7 @@ const checkout = (() => {
   function onEvent(event) {
     if (event?.name === 'checkout.completed') {
       sfx.play('open');
-      toast('Purchase complete — your download link has been sent to your email.', 7000);
+      toast('¡Compra completa! Te enviamos el link de descarga por email.', 7000);
     }
   }
 
@@ -276,8 +409,72 @@ const checkout = (() => {
       Paddle.Checkout.open({
         items: [{ priceId: game.paddlePriceId, quantity: 1 }],
         customData: { gameId: game.id },
-        settings: { displayMode: 'overlay', theme: 'dark' },
+        settings: { displayMode: 'overlay', theme: 'dark', locale: 'es' },
       });
+    },
+  };
+})();
+
+/* ============================== Ads ============================== */
+
+const ads = (() => {
+  let adsenseLoaded = false;
+
+  function loadAdsense(client) {
+    if (adsenseLoaded) return;
+    adsenseLoaded = true;
+    const s = document.createElement('script');
+    s.async = true;
+    s.crossOrigin = 'anonymous';
+    s.src = `${ADSENSE_SRC}?client=${encodeURIComponent(client)}`;
+    document.head.append(s);
+  }
+
+  // Shown in the hero slot while no ad is configured, so the space never looks empty.
+  function housePromo() {
+    const subject = encodeURIComponent('Quiero publicar mi juego en TGA');
+    return [
+      el('span', { className: 'ad-icon', innerHTML: iconSvg('all') }),
+      el('div', { className: 'ad-body' }, [
+        el('strong', { className: 'ad-title', textContent: '¿Hacés juegos?' }),
+        el('span', { className: 'ad-text', textContent: 'Publicá el tuyo en The Game Archive. Es gratis.' }),
+      ]),
+      el('a', { className: 'btn btn-light btn-sm', href: `mailto:${CONTACT_EMAIL}?subject=${subject}`, textContent: 'Escribinos' }),
+    ];
+  }
+
+  return {
+    /** Renders a slot. With no config, `house` shows the TGA promo; otherwise the slot stays hidden. */
+    render(box, cfg, { house = false } = {}) {
+      box.replaceChildren();
+      box.classList.remove('is-house', 'is-custom', 'is-adsense');
+      if (cfg?.type === 'adsense') {
+        loadAdsense(cfg.client);
+        const ins = el('ins', { className: 'adsbygoogle' });
+        Object.assign(ins.dataset, { adClient: cfg.client, adSlot: cfg.slot, adFormat: 'auto', fullWidthResponsive: 'true' });
+        box.append(el('span', { className: 'ad-label', textContent: 'Publicidad' }), ins);
+        box.classList.add('is-adsense');
+        box.hidden = false;
+        try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch { /* blocked by an ad blocker */ }
+      } else if (cfg?.type === 'custom') {
+        box.append(el('a', { className: 'ad-link', href: cfg.url, target: '_blank', rel: 'sponsored noopener noreferrer' }, [
+          cfg.image ? el('img', { className: 'ad-img', src: cfg.image, alt: cfg.title, loading: 'lazy', decoding: 'async' }) : null,
+          el('span', { className: 'ad-body' }, [
+            el('span', { className: 'ad-label', textContent: 'Publicidad' }),
+            cfg.title ? el('strong', { className: 'ad-title', textContent: cfg.title }) : null,
+            cfg.text ? el('span', { className: 'ad-text', textContent: cfg.text }) : null,
+            el('span', { className: 'btn btn-light btn-sm', textContent: cfg.cta }),
+          ]),
+        ]));
+        box.classList.add('is-custom');
+        box.hidden = false;
+      } else if (house) {
+        box.append(...housePromo());
+        box.classList.add('is-house');
+        box.hidden = false;
+      } else {
+        box.hidden = true;
+      }
     },
   };
 })();
@@ -286,21 +483,23 @@ const checkout = (() => {
 
 let toastTimer = 0;
 function toast(message, ms = 3800) {
-  const el = $('toast');
-  el.textContent = message;
-  el.classList.add('show');
+  const node = $('toast');
+  node.textContent = message;
+  node.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
+  toastTimer = setTimeout(() => node.classList.remove('show'), ms);
 }
 
 function el(tag, props = {}, children = []) {
   const node = Object.assign(document.createElement(tag), props);
-  node.append(...children);
+  node.append(...children.filter((c) => c != null && c !== false && c !== ''));
   return node;
 }
 
+function announce(text) { $('announcer').textContent = text; }
+
 function startClock() {
-  const fmt = new Intl.DateTimeFormat(undefined, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const fmt = new Intl.DateTimeFormat(LOCALE, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   const tick = () => {
     const now = new Date();
     $('clock').textContent = fmt.format(now);
@@ -314,98 +513,347 @@ function showState(title, body) {
   const box = $('state');
   box.replaceChildren(el('strong', { textContent: title }), ...body);
   box.hidden = false;
+  document.body.classList.add('no-games');
 }
 
-/* ============================== XMB ============================== */
+function gameUrl(game) {
+  return `${location.origin}${location.pathname}#/game/${encodeURIComponent(game.id)}`;
+}
 
-const state = { cats: [], cat: 0, focus: new Map(), detail: null };
+/** Primary action for a game: play in browser, free download, or Paddle checkout. */
+function makeCta(game) {
+  if (game.play) {
+    const a = el('a', { className: 'btn btn-light', href: game.play.url, target: '_blank', rel: 'noopener noreferrer' }, [uiIcon('play'), 'Jugar ahora']);
+    a.addEventListener('click', () => sfx.play('open'));
+    return a;
+  }
+  if (game.isFree) {
+    const a = el('a', { className: 'btn btn-light', href: game.download.url, target: '_blank', rel: 'noopener noreferrer' }, [uiIcon('download'), 'Descargar gratis']);
+    a.addEventListener('click', () => sfx.play('open'));
+    return a;
+  }
+  const b = el('button', { type: 'button', className: 'btn btn-buy' }, [uiIcon('cart'), `Comprar · ${formatPrice(game.price)}`]);
+  b.addEventListener('click', () => startPurchase(game, b));
+  return b;
+}
+
+function metaChips(game) {
+  return [
+    el('span', { className: 'chip', textContent: game.genreLabel }),
+    game.play ? el('span', { className: 'chip', textContent: 'En el navegador' }) : null,
+    game.isNew ? el('span', { className: 'chip chip-new', textContent: 'Nuevo' }) : null,
+  ];
+}
+
+/** Square covers sit "contained" over a blurred copy of themselves instead of being cropped. */
+function fitCover(img, media) {
+  const check = () => {
+    const r = img.naturalWidth / img.naturalHeight;
+    if (r && Math.abs(r - 16 / 9) > 0.3 && !media.classList.contains('contain')) {
+      media.classList.add('contain');
+      media.prepend(el('img', { className: 'card-fill', src: img.currentSrc || img.src, alt: '', decoding: 'async' }));
+    }
+  };
+  if (img.complete && img.naturalWidth) check();
+  else img.addEventListener('load', check, { once: true });
+}
+
+/* ============================== State ============================== */
+
+const state = {
+  games: [], cats: [], cat: 0, focus: new Map(),
+  detail: null, returnFocus: null, hoverGame: null, ads: { hero: null, detail: null },
+};
+const hero = { games: [], index: 0, paused: false, hover: false };
 
 function currentCat() { return state.cats[state.cat]; }
-function focusIndex() { return state.focus.get(currentCat().id) ?? 0; }
+function focusIndex() { return Math.min(state.focus.get(currentCat().id) ?? 0, currentCat().games.length - 1); }
+
+/* ============================== Backdrop preview ============================== */
+
+function previewBackdrop(game) {
+  if (state.detail) return;
+  state.hoverGame = game;
+  backdrop.set(game.background, { delay: 140 });
+}
+
+function clearPreview() {
+  if (!state.hoverGame) return;
+  state.hoverGame = null;
+  const g = hero.games[hero.index];
+  if (g) backdrop.set(g.background, { delay: 260 });
+}
+
+/* ============================== Hero carousel ============================== */
+
+function renderHero(games) {
+  hero.games = [...games].sort(byNewest).slice(0, HERO_COUNT);
+  $('hero').style.setProperty('--hero-ms', `${HERO_MS}ms`);
+
+  $('hero-slides').replaceChildren(...hero.games.map((g, i) => {
+    const art = el('img', { className: 'slide-bg', src: g.background, alt: '', decoding: 'async', loading: i ? 'lazy' : 'eager' });
+    if (!i) art.fetchPriority = 'high';
+    const more = el('button', { type: 'button', className: 'btn btn-glass' }, [uiIcon('info'), 'Ver detalles']);
+    more.addEventListener('click', () => openDetail(g, art));
+    const slide = el('article', { className: 'slide', id: `slide-${i}` }, [
+      art,
+      el('div', { className: 'slide-shade' }),
+      el('div', { className: 'slide-body' }, [
+        el('h2', { className: 'slide-title', textContent: g.title }),
+        el('div', { className: 'meta-row' }, [
+          el('p', { className: 'chips' }, metaChips(g)),
+          el('p', { className: 'slide-dev', textContent: [g.developer?.name, g.releasedDate && dateFmt.format(g.releasedDate)].filter(Boolean).join(' · ') }),
+        ]),
+        el('p', { className: 'slide-desc', textContent: g.description }),
+        el('div', { className: 'slide-actions' }, [makeCta(g), more]),
+      ]),
+    ]);
+    slide.setAttribute('aria-roledescription', 'diapositiva');
+    slide.setAttribute('aria-label', `${i + 1} de ${hero.games.length}: ${g.title}`);
+    // Clicking the art itself (not a button) also opens the game page.
+    slide.addEventListener('click', (e) => { if (!e.target.closest('a, button')) openDetail(g, art); });
+    return slide;
+  }));
+
+  $('hero-dots').replaceChildren(...hero.games.map((g, i) => {
+    const fill = el('span', { className: 'dot-fill' });
+    fill.addEventListener('animationend', () => goHero(hero.index + 1));
+    const dot = el('button', { type: 'button', className: 'dot', id: `dot-${i}` }, [el('span', { className: 'dot-track' }, [fill])]);
+    dot.setAttribute('aria-label', `Ver ${g.title}`);
+    dot.addEventListener('click', () => goHero(i, { user: true }));
+    return dot;
+  }));
+
+  $('hero-controls').hidden = hero.games.length < 2;
+  hero.paused = reducedMotion.matches; // no auto-advance for people who asked for less motion
+  syncHeroPause();
+  goHero(0);
+}
+
+function goHero(i, { user = false } = {}) {
+  const n = hero.games.length;
+  if (!n) return;
+  hero.index = ((i % n) + n) % n;
+  document.querySelectorAll('#hero-slides .slide').forEach((s, j) => {
+    const on = j === hero.index;
+    s.classList.toggle('active', on);
+    s.inert = !on;
+    s.setAttribute('aria-hidden', String(!on));
+  });
+  document.querySelectorAll('#hero-dots .dot').forEach((d, j) => {
+    d.classList.toggle('active', j === hero.index);
+    d.setAttribute('aria-current', String(j === hero.index));
+  });
+  if (!state.hoverGame) backdrop.set(hero.games[hero.index].background);
+  if (user) sfx.play('move');
+}
+
+function syncHeroPause() {
+  const stopped = hero.paused || hero.hover || !!state.detail || document.hidden;
+  $('hero').classList.toggle('is-paused', stopped);
+  const btn = $('hero-pause');
+  btn.setAttribute('aria-pressed', String(hero.paused));
+  btn.setAttribute('aria-label', hero.paused ? 'Reanudar el carrusel' : 'Pausar el carrusel');
+}
+
+function bindHero() {
+  const node = $('hero');
+  $('hero-prev').addEventListener('click', () => goHero(hero.index - 1, { user: true }));
+  $('hero-next').addEventListener('click', () => goHero(hero.index + 1, { user: true }));
+  $('hero-pause').addEventListener('click', () => { hero.paused = !hero.paused; syncHeroPause(); sfx.play('cat'); });
+
+  // Pause while the visitor is reading or using the slide.
+  const setHover = (v) => { hero.hover = v; syncHeroPause(); };
+  node.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') setHover(true); });
+  node.addEventListener('pointerleave', () => setHover(false));
+  node.addEventListener('focusin', () => setHover(true));
+  node.addEventListener('focusout', (e) => { if (!node.contains(e.relatedTarget)) setHover(false); });
+  document.addEventListener('visibilitychange', syncHeroPause);
+
+  node.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      goHero(hero.index + (e.key === 'ArrowRight' ? 1 : -1), { user: true });
+    }
+  });
+
+  // Touch swipe between slides.
+  let start = null;
+  node.addEventListener('touchstart', (e) => { start = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }, { passive: true });
+  node.addEventListener('touchend', (e) => {
+    if (!start) return;
+    const dx = e.changedTouches[0].clientX - start.x;
+    const dy = e.changedTouches[0].clientY - start.y;
+    start = null;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) goHero(hero.index + (dx < 0 ? 1 : -1), { user: true });
+  });
+}
+
+/* ============================== Side list ============================== */
+
+function renderWebList(games) {
+  const allWeb = games.filter((g) => g.play);
+  const web = allWeb.slice(0, 4);
+  $('web-panel').hidden = !web.length;
+  $('web-more').textContent = allWeb.length > web.length ? `Ver los ${allWeb.length} juegos web` : 'Ver en la biblioteca';
+  $('web-list').replaceChildren(...web.map((g) => {
+    const thumb = el('img', { className: 'mini-thumb', src: g.cover, alt: '', loading: 'lazy', decoding: 'async' });
+    const open = el('button', { type: 'button', className: 'mini' }, [
+      thumb,
+      el('span', { className: 'mini-text' }, [
+        el('span', { className: 'mini-title', textContent: g.title }),
+        el('span', { className: 'mini-sub', textContent: g.genreLabel }),
+      ]),
+    ]);
+    open.addEventListener('click', () => openDetail(g, thumb));
+    open.addEventListener('pointerenter', () => previewBackdrop(g));
+    open.addEventListener('pointerleave', clearPreview);
+    const play = el('a', { className: 'mini-play', href: g.play.url, target: '_blank', rel: 'noopener noreferrer' }, [uiIcon('play')]);
+    play.setAttribute('aria-label', `Jugar ${g.title} ahora`);
+    play.addEventListener('click', () => sfx.play('open'));
+    return el('li', {}, [open, play]);
+  }));
+}
+
+/* ============================== Library ============================== */
+
+function gameCard(game, { id, onOpen } = {}) {
+  const img = el('img', { className: 'card-img', src: game.cover, alt: '', loading: 'lazy', decoding: 'async' });
+  const media = el('span', { className: 'card-media' }, [
+    img,
+    game.isNew ? el('span', { className: 'tag tag-new', textContent: 'Nuevo' }) : null,
+    el('span', { className: `tag tag-price ${game.isFree ? 'free' : 'paid'}`, textContent: game.isFree ? 'Gratis' : formatPrice(game.price) }),
+  ]);
+  fitCover(img, media);
+  const card = el('button', { type: 'button', className: 'card' }, [
+    media,
+    el('span', { className: 'card-body' }, [
+      el('span', { className: 'card-title', textContent: game.title }),
+      el('span', { className: 'card-sub', textContent: [game.genreLabel, game.developer?.name].filter(Boolean).join(' · ') }),
+    ]),
+  ]);
+  if (id) card.id = id;
+  card.setAttribute('aria-label', `${game.title}, ${game.genreLabel}, ${game.isFree ? 'gratis' : formatPrice(game.price)}${game.isNew ? ', nuevo' : ''}`);
+  card.addEventListener('click', () => (onOpen ? onOpen(game, media) : openDetail(game, media)));
+  card.addEventListener('pointerenter', () => previewBackdrop(game));
+  card.addEventListener('pointerleave', clearPreview);
+  return card;
+}
 
 function renderCategories() {
-  const row = $('cats');
-  row.replaceChildren(...state.cats.map((c, i) => {
+  $('cats').replaceChildren(...state.cats.map((c, i) => {
     const btn = el('button', { type: 'button', className: 'cat', id: `cat-${i}`, tabIndex: -1 }, [
       el('span', { className: 'cat-icon', innerHTML: iconSvg(c.icon) }),
       el('span', { className: 'cat-label', textContent: c.label }),
+      el('span', { className: 'cat-count', textContent: String(c.games.length) }),
     ]);
     btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-controls', 'items');
     btn.addEventListener('click', () => selectCategory(i));
     return btn;
   }));
 }
 
-function renderItems() {
-  const list = $('items');
-  const cat = currentCat();
-  list.replaceChildren(...cat.games.map((g, i) => {
-    const btn = el('button', { type: 'button', className: 'item', id: `item-${i}`, tabIndex: -1 }, [
-      el('span', { className: 'thumb' }, [el('img', { src: g.cover, alt: '', loading: 'lazy', decoding: 'async' })]),
-      el('span', { className: 'meta' }, [
-        el('span', { className: 'm-title', textContent: g.title }),
-        el('span', { className: 'm-sub', textContent: [g.genre, g.developer?.name].filter(Boolean).join(' · ') }),
-        el('span', { className: `m-price ${g.isFree ? 'free' : 'paid'}`, textContent: g.isFree ? 'Free' : formatPrice(g.price) }),
-      ]),
-    ]);
-    btn.setAttribute('role', 'option');
-    btn.setAttribute('aria-label', `${g.title}, ${g.genre}, ${g.isFree ? 'free' : formatPrice(g.price)}`);
-    btn.addEventListener('click', () => (i === focusIndex() ? openDetail(g, btn) : focusItem(i)));
-    return el('li', { role: 'none' }, [btn]);
-  }));
-  list.classList.remove('swap');
-  void list.offsetWidth; // restart the column entrance animation
-  list.classList.add('swap');
-}
-
-/** Position items XMB-style: focused item under the category bar, earlier items above it. */
-function layoutItems(moveFocus = true) {
-  const css = getComputedStyle(document.documentElement);
-  const itemH = parseFloat(css.getPropertyValue('--item-h'));
-  const thumbH = parseFloat(css.getPropertyValue('--thumb-h'));
-  const scale = parseFloat(css.getPropertyValue('--focus-scale'));
-  const catRowH = parseFloat(css.getPropertyValue('--cat-row-h'));
-  const extra = thumbH * (scale - 1); // the focused thumbnail grows
-  const focus = focusIndex();
-
-  document.querySelectorAll('#items .item').forEach((item, i) => {
-    let y;
-    if (i === focus) y = extra / 2;
-    else if (i > focus) y = extra + (i - focus) * itemH;
-    else y = -catRowH - (focus - i) * itemH;
-    item.style.transform = `translateY(${y}px)`;
-    item.classList.toggle('focused', i === focus);
-    item.classList.toggle('above', i < focus);
-    item.classList.toggle('far', i < focus - 2);
-    item.setAttribute('aria-selected', String(i === focus));
-    item.tabIndex = i === focus ? 0 : -1;
-    if (i === focus && moveFocus && !state.detail) item.focus({ preventScroll: true });
-  });
-}
-
 function syncCategories() {
-  $('cats').style.setProperty('--cat-index', state.cat);
-  document.querySelectorAll('#cats .cat').forEach((c, i) => c.setAttribute('aria-selected', String(i === state.cat)));
+  document.querySelectorAll('#cats .cat').forEach((c, i) => {
+    c.setAttribute('aria-selected', String(i === state.cat));
+    c.tabIndex = i === state.cat ? 0 : -1;
+  });
   $('items').setAttribute('aria-labelledby', `cat-${state.cat}`);
+  const n = currentCat().games.length;
+  $('lib-count').textContent = `${n} ${n === 1 ? 'juego' : 'juegos'}`;
+  // Keep the selected tab visible in the (phone-width) scrolling row without scrolling the page.
+  const row = $('cats');
+  const tab = $(`cat-${state.cat}`);
+  if (tab && row.scrollWidth > row.clientWidth) {
+    row.scrollTo({ left: tab.offsetLeft - (row.clientWidth - tab.offsetWidth) / 2, behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+  }
 }
 
-function selectCategory(i) {
-  if (i < 0 || i >= state.cats.length || i === state.cat) return;
+function selectCategory(i, { focusTab = false } = {}) {
+  if (i < 0 || i >= state.cats.length) return;
+  if (focusTab) $(`cat-${i}`).focus({ preventScroll: true });
+  if (i === state.cat) return;
   state.cat = i;
   sfx.play('cat');
   syncCategories();
   renderItems();
-  layoutItems();
   const cat = currentCat();
-  $('announcer').textContent = `${cat.label}, ${cat.games.length} ${cat.games.length === 1 ? 'game' : 'games'}`;
+  announce(`${cat.label}, ${cat.games.length} ${cat.games.length === 1 ? 'juego' : 'juegos'}`);
 }
 
-function focusItem(i) {
-  const n = currentCat().games.length;
-  if (i < 0 || i >= n || i === focusIndex()) return;
+function renderItems() {
+  const list = $('items');
+  const fi = focusIndex();
+  list.replaceChildren(...currentCat().games.map((g, i) => {
+    const card = gameCard(g, { id: `item-${i}` });
+    card.tabIndex = i === fi ? 0 : -1;
+    card.addEventListener('focus', () => setRoving(i));
+    const li = el('li', { className: 'card-li' }, [card]);
+    li.style.setProperty('--i', Math.min(i, 10));
+    return li;
+  }));
+  list.classList.remove('swap');
+  void list.offsetWidth; // restart the staggered entrance
+  list.classList.add('swap');
+}
+
+function setRoving(i) {
   state.focus.set(currentCat().id, i);
-  sfx.play('move');
-  layoutItems();
+  document.querySelectorAll('#items .card').forEach((c, j) => { c.tabIndex = j === i ? 0 : -1; });
+}
+
+function focusCard(i) {
+  const n = currentCat().games.length;
+  if (!n) return;
+  const j = Math.max(0, Math.min(n - 1, i));
+  setRoving(j);
+  const card = $(`item-${j}`);
+  card?.focus({ preventScroll: true });
+  card?.scrollIntoView({ block: 'nearest', behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+}
+
+const gridCols = (list) => getComputedStyle(list).gridTemplateColumns.split(' ').filter(Boolean).length || 1;
+
+function bindLibrary() {
+  // Category tabs: arrows move and select (automatic activation), Down jumps into the games.
+  $('cats').addEventListener('keydown', (e) => {
+    const keys = { ArrowLeft: state.cat - 1, ArrowRight: state.cat + 1, Home: 0, End: state.cats.length - 1 };
+    if (e.key in keys) {
+      e.preventDefault();
+      selectCategory(Math.max(0, Math.min(state.cats.length - 1, keys[e.key])), { focusTab: true });
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      focusCard(focusIndex());
+    }
+  });
+
+  $('web-more').addEventListener('click', () => {
+    const i = state.cats.findIndex((c) => c.id === 'web');
+    if (i >= 0) selectCategory(i);
+    $('library').scrollIntoView({ block: 'start', behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+    $('library').focus({ preventScroll: true });
+  });
+
+  // Game grid: 2D arrow navigation; Up from the first row returns to the tabs.
+  $('items').addEventListener('keydown', (e) => {
+    if (!e.target.closest('.card')) return;
+    const i = focusIndex();
+    const cols = gridCols($('items'));
+    const n = currentCat().games.length;
+    const target = { ArrowRight: i + 1, ArrowLeft: i - 1, ArrowDown: i + cols, ArrowUp: i - cols, Home: 0, End: n - 1 }[e.key];
+    if (target === undefined) return;
+    e.preventDefault();
+    if (e.key === 'ArrowUp' && target < 0) { $(`cat-${state.cat}`).focus(); return; }
+    const j = Math.max(0, Math.min(n - 1, target));
+    if (j !== i) { focusCard(j); sfx.play('move'); }
+  });
+  $('items').addEventListener('focusin', (e) => {
+    const card = e.target.closest('.card');
+    const i = card ? [...$('items').querySelectorAll('.card')].indexOf(card) : -1;
+    if (i >= 0) previewBackdrop(currentCat().games[i]);
+  });
+  $('items').addEventListener('focusout', (e) => { if (!$('items').contains(e.relatedTarget)) clearPreview(); });
 }
 
 /* ============================== Detail view ============================== */
@@ -413,8 +861,8 @@ function focusItem(i) {
 function fillDetail(game) {
   $('d-bg').src = game.background;
   $('d-cover').src = game.cover;
-  $('d-cover').alt = `${game.title} cover art`;
-  $('d-genre').textContent = game.genre;
+  $('d-cover').alt = `Portada de ${game.title}`;
+  $('d-chips').replaceChildren(...metaChips(game).filter(Boolean));
   $('d-title').textContent = game.title;
 
   const dev = $('d-dev');
@@ -422,47 +870,91 @@ function fillDetail(game) {
   if (game.developer) {
     const name = game.developer.url
       ? el('a', { href: game.developer.url, target: '_blank', rel: 'noopener noreferrer', textContent: game.developer.name })
-      : document.createTextNode(game.developer.name);
-    dev.append('by ', name);
+      : el('strong', { textContent: game.developer.name });
+    dev.append('de ', name);
   }
-  if (game.released) dev.append(`${game.developer ? ' · ' : ''}Released ${game.released}`);
+  if (game.releasedDate) dev.append(`${game.developer ? ' · ' : ''}Lanzado el ${dateFmt.format(game.releasedDate)}`);
+  else if (game.released) dev.append(`${game.developer ? ' · ' : ''}Lanzado: ${game.released}`);
 
   const price = $('d-price');
-  price.textContent = game.isFree ? 'Free' : formatPrice(game.price);
+  price.textContent = game.isFree ? 'Gratis' : formatPrice(game.price);
   price.className = `d-price ${game.isFree ? 'free' : 'paid'}`;
 
-  const note = $('d-note');
-  let cta;
-  if (game.play) {
-    cta = el('a', { className: 'btn free', href: game.play.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Play Now' });
-    cta.addEventListener('click', () => sfx.play('open'));
-    note.textContent = 'Runs in your browser — no download needed.';
-  } else if (game.isFree) {
-    cta = el('a', { className: 'btn free', href: game.download.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Download Free' });
-    cta.addEventListener('click', () => sfx.play('open'));
-    note.textContent = [game.download.platform, game.download.size].filter(isText).join(' · ');
-  } else {
-    cta = el('button', { type: 'button', className: 'btn buy', textContent: `Buy · ${formatPrice(game.price)}` });
-    cta.addEventListener('click', () => startPurchase(game, cta));
-    note.replaceChildren(
-      'Secure checkout by Paddle. Your download link is emailed after purchase. By buying you agree to our ',
-      el('a', { href: 'legal.html#terms', textContent: 'Terms' }), ' and ',
-      el('a', { href: 'legal.html#refunds', textContent: 'Refund Policy' }), '.',
-    );
-  }
+  const cta = makeCta(game);
   cta.id = 'd-primary';
   $('d-cta').replaceChildren(cta);
 
+  const note = $('d-note');
+  if (game.play) note.textContent = 'Se juega en el navegador, sin descargar nada.';
+  else if (game.isFree) note.textContent = [game.download.platform, game.download.size].filter(isText).join(' · ');
+  else {
+    note.replaceChildren(
+      'Pago seguro con Paddle. El link de descarga te llega por email. Al comprar aceptás los ',
+      el('a', { href: 'legal.html#terms', textContent: 'Términos' }), ' y la ',
+      el('a', { href: 'legal.html#refunds', textContent: 'Política de reembolsos' }), '.',
+    );
+  }
+
+  // Unsigned Windows builds trigger SmartScreen; tell people how to get past it before they give up.
+  const warn = $('d-warn');
+  const isWindows = game.download && /windows|\.exe|\.zip/i.test(`${game.download.platform ?? ''} ${game.download.url}`);
+  warn.hidden = !isWindows;
+  if (isWindows) {
+    warn.replaceChildren(uiIcon('shield'), el('span', {}, [
+      'Si Windows muestra “Windows protegió su PC”, es porque el juego no está firmado digitalmente. Tocá ',
+      el('strong', { textContent: 'Más información' }), ' y después ', el('strong', { textContent: 'Ejecutar de todas formas' }), '.',
+    ]));
+  }
+
   $('d-desc').textContent = game.description;
   const reqs = $('d-reqs');
-  reqs.replaceChildren(...game.requirements.flatMap(([k, v]) => [el('dt', { textContent: k }), el('dd', { textContent: v })]));
-  if (!game.requirements.length) reqs.append(el('dd', { textContent: 'Not specified by the developer.' }));
+  reqs.replaceChildren(...game.requirements.flatMap(([k, v]) => [el('dt', { textContent: reqLabel(k) }), el('dd', { textContent: v })]));
+  if (!game.requirements.length) reqs.append(el('dd', { textContent: 'El desarrollador no los especificó.' }));
+
+  // Screenshots
+  const shots = game.screenshots;
+  $('d-shots-wrap').hidden = !shots.length;
+  $('d-shots').replaceChildren(...shots.map((src, i) => {
+    const b = el('button', { type: 'button', className: 'shot' }, [el('img', { src, alt: '', loading: 'lazy', decoding: 'async' })]);
+    b.setAttribute('aria-label', `Ver captura ${i + 1} de ${shots.length}`);
+    b.addEventListener('click', () => viewer.open(shots, i));
+    return el('li', {}, [b]);
+  }));
+
+  // Trailer: a poster button; YouTube only loads when the visitor asks for it.
+  const trailer = $('d-trailer');
+  trailer.replaceChildren();
+  $('d-trailer-wrap').hidden = !game.trailer;
+  if (game.trailer) {
+    const b = el('button', { type: 'button', className: 'trailer-btn' }, [
+      el('img', { src: `https://i.ytimg.com/vi/${game.trailer}/hqdefault.jpg`, alt: '', loading: 'lazy', decoding: 'async' }),
+      el('span', { className: 'trailer-play' }, [uiIcon('play')]),
+    ]);
+    b.setAttribute('aria-label', `Reproducir el tráiler de ${game.title}`);
+    b.addEventListener('click', () => {
+      const frame = el('iframe', {
+        src: `https://www.youtube-nocookie.com/embed/${game.trailer}?autoplay=1&rel=0`,
+        title: `Tráiler de ${game.title}`,
+        allow: 'autoplay; encrypted-media; picture-in-picture; fullscreen',
+        allowFullscreen: true,
+      });
+      trailer.replaceChildren(frame);
+      frame.focus();
+    });
+    trailer.append(b);
+  }
+
+  // Related: same genre first, then the rest.
+  const others = state.games.filter((g) => g !== game);
+  const related = [...others.filter((g) => g.genre === game.genre), ...others.filter((g) => g.genre !== game.genre)].slice(0, 4);
+  $('d-related-wrap').hidden = !related.length;
+  $('d-related').replaceChildren(...related.map((g) => el('li', { className: 'card-li' }, [gameCard(g, { onOpen: switchDetail })])));
 }
 
 async function startPurchase(game, button) {
   if (!checkout.configured) {
     sfx.play('error');
-    toast('Checkout isn’t configured yet — add your Paddle client token to games.json.', 6000);
+    toast('El pago todavía no está configurado: falta el client token de Paddle en games.json.', 6000);
     return;
   }
   button.disabled = true;
@@ -470,35 +962,65 @@ async function startPurchase(game, button) {
     await checkout.buy(game);
   } catch (err) {
     sfx.play('error');
-    toast(err.message || 'Checkout failed to open. Please try again.', 6000);
+    toast(err.message || 'No se pudo abrir el pago. Probá de nuevo.', 6000);
   } finally {
     button.disabled = false;
   }
 }
 
-function openDetail(game, fromItem, { pushHistory = true } = {}) {
+let detailAdRendered = false;
+function ensureDetailAd() {
+  if (detailAdRendered || !state.ads.detail) return;
+  detailAdRendered = true;
+  // Rendered on first open so AdSense measures a visible box.
+  requestAnimationFrame(() => ads.render($('ad-detail'), state.ads.detail));
+}
+
+function openDetail(game, fromEl, { pushHistory = true } = {}) {
   if (state.detail) return;
   const detail = $('detail');
   state.detail = game;
+  state.returnFocus = fromEl?.closest('button, a') ?? document.activeElement;
+  clearPreview();
   fillDetail(game);
 
-  // Expand from the thumbnail's on-screen rect to full screen.
-  const thumb = fromItem?.querySelector('.thumb');
-  if (thumb) {
-    const r = thumb.getBoundingClientRect();
-    detail.style.setProperty('--from', `inset(${r.top}px ${innerWidth - r.right}px ${innerHeight - r.bottom}px ${r.left}px round 6px)`);
+  // Expand from the clicked artwork's on-screen rect to full screen.
+  if (fromEl) {
+    const r = fromEl.getBoundingClientRect();
+    detail.style.setProperty('--from', `inset(${r.top}px ${innerWidth - r.right}px ${innerHeight - r.bottom}px ${r.left}px round 18px)`);
   } else {
     detail.style.removeProperty('--from');
   }
   detail.hidden = false;
   $('app').inert = true;
+  document.documentElement.classList.add('locked');
   void detail.offsetWidth;
   detail.classList.add('open');
-  detail.querySelector('.d-body').scrollTop = 0;
+  $('d-body').scrollTop = 0;
   sfx.play('open');
+  syncHeroPause();
+  ensureDetailAd();
   $('d-primary').focus({ preventScroll: true });
 
   if (pushHistory) history.pushState({ game: game.id }, '', `#/game/${encodeURIComponent(game.id)}`);
+}
+
+/** Swap the open detail page to another game (from "También te puede gustar"). */
+function switchDetail(game) {
+  if (!state.detail || state.detail === game) return;
+  state.detail = game;
+  fillDetail(game);
+  history.replaceState({ game: game.id }, '', `#/game/${encodeURIComponent(game.id)}`);
+  const body = $('d-body');
+  body.scrollTo({ top: 0, behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+  if (!reducedMotion.matches) {
+    body.querySelector('.d-grid').animate(
+      [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 320, easing: 'cubic-bezier(.23, 1, .32, 1)' },
+    );
+  }
+  sfx.play('open');
+  $('d-primary').focus({ preventScroll: true });
 }
 
 function closeDetail({ fromHistory = false } = {}) {
@@ -510,9 +1032,15 @@ function closeDetail({ fromHistory = false } = {}) {
   state.detail = null;
   detail.classList.remove('open');
   $('app').inert = false;
+  document.documentElement.classList.remove('locked');
   sfx.play('back');
+  syncHeroPause();
 
-  const finish = () => { if (!state.detail) detail.hidden = true; };
+  const finish = () => {
+    if (state.detail) return;
+    detail.hidden = true;
+    $('d-trailer').replaceChildren(); // stops a playing trailer
+  };
   if (reducedMotion.matches) finish();
   else {
     detail.addEventListener('transitionend', function onEnd(e) {
@@ -522,7 +1050,9 @@ function closeDetail({ fromHistory = false } = {}) {
     });
     setTimeout(finish, 800); // fallback if transitionend never fires
   }
-  layoutItems();
+  const back = state.returnFocus;
+  if (back?.isConnected) back.focus({ preventScroll: true });
+  else $(`item-${focusIndex()}`)?.focus({ preventScroll: true });
   if (!fromHistory && location.hash) history.replaceState(null, '', location.pathname + location.search);
 }
 
@@ -530,81 +1060,136 @@ function gameFromHash() {
   const m = location.hash.match(/^#\/game\/(.+)$/);
   if (!m) return null;
   const id = decodeURIComponent(m[1]);
-  return state.cats[0]?.games.find((g) => g.id === id) ?? null;
+  return state.games.find((g) => g.id === id) ?? null;
 }
+
+async function shareGame() {
+  const game = state.detail;
+  if (!game) return;
+  const url = gameUrl(game);
+  if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+    try { await navigator.share({ title: game.title, text: `${game.title} en The Game Archive`, url }); } catch { /* cancelled */ }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    sfx.play('cat');
+    toast('Link copiado. ¡Pasalo!');
+  } catch {
+    toast(url, 8000);
+  }
+}
+
+/* ============================== Screenshot viewer ============================== */
+
+const viewer = (() => {
+  const dlg = $('viewer');
+  const img = $('viewer-img');
+  let list = [];
+  let index = 0;
+
+  function show(i) {
+    index = ((i % list.length) + list.length) % list.length;
+    img.src = list[index];
+    img.alt = `Captura ${index + 1} de ${list.length}`;
+    $('viewer-count').textContent = `${index + 1} / ${list.length}`;
+    $('viewer-prev').hidden = $('viewer-next').hidden = list.length < 2;
+  }
+  const step = (d) => { if (list.length > 1) { show(index + d); sfx.play('move'); } };
+
+  $('viewer-prev').addEventListener('click', () => step(-1));
+  $('viewer-next').addEventListener('click', () => step(1));
+  $('viewer-close').addEventListener('click', () => dlg.close());
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); }); // click outside the image
+  dlg.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
+  });
+  dlg.addEventListener('close', () => sfx.play('back'));
+
+  return {
+    open(shots, i) {
+      list = shots;
+      show(i);
+      dlg.showModal();
+      sfx.play('open');
+    },
+  };
+})();
 
 /* ============================== Input ============================== */
 
-function bindInput() {
+function bindInput(search) {
   document.addEventListener('keydown', (e) => {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if ($('viewer').open) return; // the dialog handles its own keys
+    const typing = e.target.closest?.('input, textarea, [contenteditable="true"]');
     if (state.detail) {
-      if (e.key === 'Escape' || (e.key === 'Backspace' && !e.target.closest('input, textarea'))) {
+      if (e.key === 'Escape' || (e.key === 'Backspace' && !typing)) {
         e.preventDefault();
         closeDetail();
       }
       return;
     }
-    if (!state.cats.length) return;
-    const actions = {
-      ArrowLeft: () => selectCategory(state.cat - 1),
-      ArrowRight: () => selectCategory(state.cat + 1),
-      ArrowUp: () => focusItem(focusIndex() - 1),
-      ArrowDown: () => focusItem(focusIndex() + 1),
-      Home: () => focusItem(0),
-      End: () => focusItem(currentCat().games.length - 1),
-      Enter: () => {
-        const i = focusIndex();
-        openDetail(currentCat().games[i], document.getElementById(`item-${i}`));
-      },
-    };
-    const action = actions[e.key];
-    if (action) {
+    if (typing || !state.cats.length) return;
+    if (e.key === '/') {
       e.preventDefault();
-      if (!e.repeat || e.key.startsWith('Arrow')) action();
+      search.open();
+      return;
     }
-  });
-
-  // Mouse wheel / trackpad: accumulate so one notch = one step.
-  let wheel = 0;
-  $('xmb').addEventListener('wheel', (e) => {
-    if (state.detail || !state.cats.length) return;
-    e.preventDefault();
-    wheel += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? 0 : e.deltaY;
-    if (Math.abs(wheel) >= 60) {
-      focusItem(focusIndex() + Math.sign(wheel));
-      wheel = 0;
+    // Nothing focused yet: arrows still drive the library, like the old XMB.
+    if (e.target === document.body || e.target === $('library')) {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        selectCategory(state.cat + (e.key === 'ArrowRight' ? 1 : -1), { focusTab: true });
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        focusCard(focusIndex());
+      }
     }
-  }, { passive: false });
-
-  // Touch swipes: vertical = games, horizontal = categories.
-  let start = null;
-  $('xmb').addEventListener('touchstart', (e) => { start = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }, { passive: true });
-  $('xmb').addEventListener('touchend', (e) => {
-    if (!start || state.detail || !state.cats.length) return;
-    const dx = e.changedTouches[0].clientX - start.x;
-    const dy = e.changedTouches[0].clientY - start.y;
-    start = null;
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < 40) return;
-    if (Math.abs(dx) > Math.abs(dy)) selectCategory(state.cat + (dx < 0 ? 1 : -1));
-    else focusItem(focusIndex() + (dy < 0 ? 1 : -1));
   });
 
   $('d-back').addEventListener('click', () => closeDetail());
+  $('d-share').addEventListener('click', shareGame);
   addEventListener('popstate', () => {
     const game = gameFromHash();
     if (game && !state.detail) openDetail(game, null, { pushHistory: false });
+    else if (game && state.detail && state.detail !== game) switchDetail(game);
     else if (!game && state.detail) closeDetail({ fromHistory: true });
   });
-  addEventListener('resize', () => layoutItems(false));
 
   const mute = $('mute');
   const syncMute = () => {
     mute.setAttribute('aria-pressed', String(sfx.muted));
-    mute.setAttribute('aria-label', sfx.muted ? 'Unmute sounds' : 'Mute sounds');
+    mute.setAttribute('aria-label', sfx.muted ? 'Activar sonidos' : 'Silenciar sonidos');
   };
   mute.addEventListener('click', () => { sfx.toggle(); syncMute(); sfx.play('cat'); });
   syncMute();
+
+  // Top bar gets a solid backing once the page scrolls under it.
+  const topbar = $('topbar');
+  const onScroll = () => topbar.classList.toggle('scrolled', scrollY > 8);
+  addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  $('brand').addEventListener('click', (e) => {
+    e.preventDefault();
+    scrollTo({ top: 0, behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+  });
+}
+
+/** Sections rise in once as they scroll into view. Content stays visible if this never runs. */
+function bindReveal() {
+  const nodes = document.querySelectorAll('[data-reveal]');
+  if (!('IntersectionObserver' in window)) { nodes.forEach((n) => n.classList.add('in')); return; }
+  const io = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      entry.target.classList.add('in');
+      io.unobserve(entry.target);
+    }
+  }, { rootMargin: '0px 0px -8% 0px' });
+  nodes.forEach((n) => io.observe(n));
 }
 
 /* ============================== Search ============================== */
@@ -615,7 +1200,6 @@ const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 function bindSearch() {
   const wrap = $('search');
   const btn = $('search-btn');
-  const box = $('search-box');
   const input = $('search-input');
   const list = $('search-results');
   let matches = [];
@@ -635,14 +1219,13 @@ function bindSearch() {
 
   const render = () => {
     const q = fold(input.value.trim());
-    const games = state.cats[0]?.games ?? []; // "All Games"
-    matches = q ? games.filter((g) => fold([g.title, g.genre, g.developer?.name ?? ''].join(' ')).includes(q)) : [];
+    matches = q ? state.games.filter((g) => fold([g.title, g.genre, g.genreLabel, g.developer?.name ?? ''].join(' ')).includes(q)) : [];
     list.replaceChildren(...matches.map((g, i) => {
       const opt = el('li', { id: `sr-${i}`, className: 'sr-item' }, [
         el('img', { src: g.cover, alt: '', loading: 'lazy', decoding: 'async' }),
         el('span', { className: 'sr-text' }, [
           el('span', { className: 'sr-title', textContent: g.title }),
-          el('span', { className: 'sr-sub', textContent: [g.genre, g.developer?.name].filter(Boolean).join(' · ') }),
+          el('span', { className: 'sr-sub', textContent: [g.genreLabel, g.developer?.name].filter(Boolean).join(' · ') }),
         ]),
       ]);
       opt.setAttribute('role', 'option');
@@ -651,40 +1234,39 @@ function bindSearch() {
       opt.addEventListener('click', () => choose(i));
       return opt;
     }));
-    if (q && !matches.length) list.append(el('li', { className: 'sr-empty', textContent: 'No games found' }));
+    if (q && !matches.length) list.append(el('li', { className: 'sr-empty', textContent: 'No encontramos juegos con ese nombre.' }));
     list.hidden = !q;
     input.setAttribute('aria-expanded', String(matches.length > 0));
     setActive(matches.length ? 0 : -1);
-    $('announcer').textContent = q ? `${matches.length} ${matches.length === 1 ? 'result' : 'results'}` : '';
+    announce(q ? `${matches.length} ${matches.length === 1 ? 'resultado' : 'resultados'}` : '');
   };
 
   const open = () => {
-    box.hidden = false;
+    wrap.classList.add('open');
     btn.setAttribute('aria-expanded', 'true');
     input.focus();
-    sfx.play('cat');
   };
 
-  const close = ({ refocus = true } = {}) => {
-    if (box.hidden) return;
-    box.hidden = true;
+  const close = () => {
+    wrap.classList.remove('open');
     btn.setAttribute('aria-expanded', 'false');
-    input.value = '';
-    render();
-    if (refocus) layoutItems(); // hands focus back to the XMB
+    if (input.value) { input.value = ''; render(); }
   };
 
   const choose = (i) => {
     const game = matches[i];
     if (!game) return;
-    close({ refocus: false });
+    close();
+    input.blur();
     openDetail(game, null);
   };
 
-  btn.addEventListener('click', () => (box.hidden ? open() : close()));
+  btn.addEventListener('click', () => {
+    if (wrap.classList.contains('open')) { close(); btn.focus(); } else { open(); sfx.play('cat'); }
+  });
   input.addEventListener('input', render);
   input.addEventListener('keydown', (e) => {
-    e.stopPropagation(); // typing must not drive the XMB
+    e.stopPropagation(); // typing must not drive the library
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       if (matches.length) setActive((active + (e.key === 'ArrowDown' ? 1 : -1) + matches.length) % matches.length);
@@ -693,10 +1275,14 @@ function bindSearch() {
       choose(active);
     } else if (e.key === 'Escape') {
       e.preventDefault();
+      const wasOpen = wrap.classList.contains('open');
       close();
+      if (wasOpen) btn.focus(); else input.blur();
     }
   });
-  document.addEventListener('pointerdown', (e) => { if (!wrap.contains(e.target)) close({ refocus: false }); });
+  document.addEventListener('pointerdown', (e) => { if (!wrap.contains(e.target) && e.target !== btn && !btn.contains(e.target)) close(); });
+
+  return { open };
 }
 
 /* ============================== Boot ============================== */
@@ -705,8 +1291,11 @@ async function boot() {
   document.documentElement.style.setProperty('--hue', MONTH_HUES[new Date().getMonth()]);
   startBackground($('bg'));
   startClock();
-  bindInput();
-  bindSearch();
+  const search = bindSearch();
+  bindInput(search);
+  bindHero();
+  bindLibrary();
+  bindReveal();
 
   let catalog;
   try {
@@ -714,22 +1303,27 @@ async function boot() {
   } catch (err) {
     console.error('[TGA]', err);
     const hint = location.protocol === 'file:'
-      ? [el('span', { textContent: 'Browsers block reading games.json from a file:// page. Run ' }), el('code', { textContent: 'start.bat' }), el('span', { textContent: ' and open the address it prints.' })]
+      ? [el('span', { textContent: 'El navegador no deja leer games.json desde un archivo local. Abrí ' }), el('code', { textContent: 'start.bat' }), el('span', { textContent: ' y entrá a la dirección que muestra.' })]
       : [el('span', { textContent: err.message })];
-    showState('Couldn’t load the library', hint);
+    showState('No se pudo cargar la biblioteca', hint);
     return;
   }
 
   checkout.configure(catalog.paddle);
+  state.games = catalog.games;
+  state.ads = catalog.ads;
   state.cats = buildCategories(catalog.games);
+  ads.render($('ad-hero'), catalog.ads.hero, { house: true });
   if (!state.cats.length) {
-    showState('No games yet', [el('span', { textContent: 'Add a game object to ' }), el('code', { textContent: 'games.json' }), el('span', { textContent: ' and reload.' })]);
+    showState('Todavía no hay juegos', [el('span', { textContent: 'Agregá un juego a ' }), el('code', { textContent: 'games.json' }), el('span', { textContent: ' y recargá.' })]);
     return;
   }
+  renderHero(catalog.games);
+  renderWebList(catalog.games);
   renderCategories();
   syncCategories();
   renderItems();
-  layoutItems();
+  document.body.classList.add('ready');
 
   const linked = gameFromHash();
   // Deep link: no history entry is pushed, so closing clears the hash instead of leaving the site.

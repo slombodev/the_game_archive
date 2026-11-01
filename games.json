@@ -5,6 +5,11 @@
       "clientToken": ""
     }
   },
+  "ads": {
+    "adsenseClient": "",
+    "hero": null,
+    "detail": null
+  },
   "games": [
     {
       "id": "eldoria-the-last-kingdom",

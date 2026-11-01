@@ -1,17 +1,34 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>TGA · The Game Archive</title>
-  <meta name="description" content="TGA (The Game Archive) — a home for indie games.">
+  <meta name="description" content="The Game Archive: juegos indie gratis para descargar o jugar en el navegador.">
+  <meta name="theme-color" content="#07090f">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+  <!-- Vista previa al compartir el link (WhatsApp, Discord, X…) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Game Archive">
+  <meta property="og:title" content="TGA · The Game Archive">
+  <meta property="og:description" content="Juegos indie gratis para descargar o jugar en el navegador.">
+  <meta property="og:url" content="https://slombodev.github.io/the_game_archive/">
+  <meta property="og:image" content="https://slombodev.github.io/the_game_archive/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:locale" content="es_LA">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://slombodev.github.io/the_game_archive/og.png">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- Shared gradients for the glossy category icons -->
+  <!-- Shared gradient for the glossy category icons -->
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
     <defs>
       <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
@@ -23,92 +40,182 @@
     </defs>
   </svg>
 
+  <a class="skip" href="#library">Saltar a la biblioteca</a>
+
+  <!-- Fondo dinámico: el arte del juego seleccionado + las ondas XMB -->
+  <div class="backdrop" id="backdrop" aria-hidden="true">
+    <img class="bd-layer" alt="" decoding="async">
+    <img class="bd-layer" alt="" decoding="async">
+  </div>
   <canvas id="bg" aria-hidden="true"></canvas>
 
   <div id="app">
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark">TGA</span>
+    <header class="topbar" id="topbar">
+      <a class="brand" href="#top" id="brand" aria-label="The Game Archive, inicio">
+        <span class="brand-mark" aria-hidden="true">TGA</span>
         <span class="brand-name">The Game Archive</span>
-      </div>
-      <div class="status">
-        <div class="search" id="search">
-          <button id="search-btn" class="icon-btn" type="button" aria-label="Search games" aria-expanded="false" aria-controls="search-box">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
-          </button>
-          <div class="search-box glass" id="search-box" hidden>
-            <input id="search-input" type="search" placeholder="Search games…" aria-label="Search games" autocomplete="off" spellcheck="false" role="combobox" aria-controls="search-results" aria-expanded="false" aria-autocomplete="list">
-            <ul class="search-results" id="search-results" role="listbox" aria-label="Search results" hidden></ul>
-          </div>
+      </a>
+
+      <div class="search" id="search">
+        <div class="search-box" id="search-box">
+          <svg class="search-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+          <input id="search-input" type="search" placeholder="Buscar juegos…" aria-label="Buscar juegos" autocomplete="off" spellcheck="false" role="combobox" aria-controls="search-results" aria-expanded="false" aria-autocomplete="list">
+          <kbd class="search-key" aria-hidden="true">/</kbd>
+          <ul class="search-results" id="search-results" role="listbox" aria-label="Resultados" hidden></ul>
         </div>
-        <button id="mute" class="icon-btn" type="button" aria-pressed="false" aria-label="Mute sounds">
+      </div>
+
+      <div class="status">
+        <button id="search-btn" class="icon-btn search-toggle" type="button" aria-label="Buscar juegos" aria-expanded="false" aria-controls="search-box">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+        </button>
+        <button id="mute" class="icon-btn" type="button" aria-pressed="false" aria-label="Silenciar sonidos">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path class="spk" d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/><path class="x" d="M16 9l6 6M22 9l-6 6"/></svg>
         </button>
-        <time id="clock"></time>
+        <time id="clock" class="clock"></time>
       </div>
     </header>
 
-    <main class="xmb" id="xmb">
-      <nav class="cats" aria-label="Categories">
-        <div class="cat-row" id="cats" role="tablist" aria-orientation="horizontal"></div>
-      </nav>
-      <ul class="items" id="items" role="listbox" aria-label="Games"></ul>
-      <div class="state" id="state" hidden></div>
+    <main id="top">
+      <div class="home-top">
+        <section class="hero" id="hero" aria-roledescription="carrusel" aria-label="Juegos destacados">
+          <div class="hero-slides" id="hero-slides"></div>
+          <div class="hero-controls" id="hero-controls" hidden>
+            <button class="round-btn" id="hero-prev" type="button" aria-label="Juego anterior">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+            </button>
+            <div class="hero-dots" id="hero-dots"></div>
+            <button class="round-btn" id="hero-pause" type="button" aria-pressed="false" aria-label="Pausar el carrusel">
+              <svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12"/></svg>
+              <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>
+            </button>
+            <button class="round-btn" id="hero-next" type="button" aria-label="Juego siguiente">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+        </section>
+
+        <aside class="side" aria-label="Destacados y anuncios" data-reveal="2">
+          <div class="ad" id="ad-hero"></div>
+          <section class="glass side-panel" id="web-panel" aria-labelledby="web-title" hidden>
+            <h2 class="side-title" id="web-title">Jugá en el navegador</h2>
+            <ul class="mini-list" id="web-list"></ul>
+            <button class="side-more" id="web-more" type="button">Ver todos los juegos web</button>
+          </section>
+        </aside>
+      </div>
+
+      <section class="library" id="library" aria-labelledby="lib-title" tabindex="-1">
+        <div class="lib-head" data-reveal>
+          <h2 id="lib-title">Biblioteca</h2>
+          <p class="lib-count" id="lib-count"></p>
+        </div>
+        <div class="cats" id="cats" role="tablist" aria-label="Categorías" data-reveal="2"></div>
+        <ul class="grid" id="items" role="tabpanel" aria-label="Juegos"></ul>
+        <div class="state" id="state" hidden></div>
+      </section>
     </main>
 
-    <footer class="legal-links">
-      <span>© 2026 TGA</span>
-      <a href="legal.html#terms">Terms</a>
-      <a href="legal.html#privacy">Privacy</a>
-      <a href="legal.html#refunds">Refunds</a>
-      <a href="legal.html#contact">Contact</a>
+    <footer class="site-foot">
+      <div class="foot-row" data-reveal>
+        <nav class="legal-links" aria-label="Legal">
+          <span>© 2026 TGA</span>
+          <a href="legal.html#terms">Términos</a>
+          <a href="legal.html#privacy">Privacidad</a>
+          <a href="legal.html#refunds">Reembolsos</a>
+          <a href="legal.html#contact">Contacto</a>
+        </nav>
+        <div class="hints" aria-hidden="true">
+          <span><kbd>/</kbd> Buscar</span>
+          <span><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> Navegar</span>
+          <span><kbd>Enter</kbd> Abrir</span>
+          <span><kbd>Esc</kbd> Volver</span>
+        </div>
+      </div>
+      <p class="foot-word" aria-hidden="true">The Game Archive</p>
     </footer>
-
-    <div class="hints" aria-hidden="true">
-      <span><kbd>←</kbd><kbd>→</kbd> Category</span>
-      <span><kbd>↑</kbd><kbd>↓</kbd> Select</span>
-      <span><kbd>Enter</kbd> Open</span>
-      <span><kbd>Esc</kbd> Back</span>
-    </div>
   </div>
 
   <section id="detail" class="detail" role="dialog" aria-modal="true" aria-labelledby="d-title" hidden>
     <img class="d-bg" id="d-bg" alt="">
     <div class="d-shade"></div>
-    <div class="d-body">
-      <button class="d-back icon-btn" id="d-back" type="button" aria-label="Back to library">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
-      </button>
+    <div class="d-body" id="d-body">
+      <div class="d-top">
+        <button class="round-btn" id="d-back" type="button" aria-label="Volver a la biblioteca">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <button class="round-btn" id="d-share" type="button" aria-label="Compartir este juego">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7.5 8.5L12 4l4.5 4.5M5 13v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6"/></svg>
+        </button>
+      </div>
+
       <div class="d-grid">
-        <div class="d-main glass">
-          <img class="d-cover" id="d-cover" alt="">
-          <p class="d-genre" id="d-genre"></p>
-          <h1 class="d-title" id="d-title"></h1>
-          <p class="d-dev" id="d-dev"></p>
-          <div class="d-actions">
-            <span class="d-price" id="d-price"></span>
-            <div id="d-cta"></div>
+        <div class="d-main">
+          <div class="d-head">
+            <h1 class="d-title" id="d-title"></h1>
+            <div class="meta-row">
+              <p class="chips" id="d-chips"></p>
+              <p class="d-dev" id="d-dev"></p>
+            </div>
+            <div class="d-actions">
+              <div id="d-cta"></div>
+              <span class="d-price" id="d-price"></span>
+            </div>
+            <p class="d-note" id="d-note"></p>
+            <p class="d-warn" id="d-warn" hidden></p>
           </div>
-          <p class="d-note" id="d-note"></p>
-        </div>
-        <div class="d-side">
+
           <section class="glass d-panel">
-            <h2>Synopsis</h2>
-            <p id="d-desc"></p>
+            <h2>Sinopsis</h2>
+            <p class="d-desc" id="d-desc"></p>
           </section>
-          <section class="glass d-panel">
-            <h2>System Requirements</h2>
+
+          <section class="d-media" id="d-shots-wrap" hidden>
+            <h2>Capturas</h2>
+            <ul class="shots" id="d-shots"></ul>
+          </section>
+
+          <section class="d-media" id="d-trailer-wrap" hidden>
+            <h2>Tráiler</h2>
+            <div class="trailer" id="d-trailer"></div>
+          </section>
+        </div>
+
+        <aside class="d-side">
+          <section class="glass d-panel d-card">
+            <img class="d-cover" id="d-cover" alt="">
+            <h2>Requisitos del sistema</h2>
             <dl class="d-reqs" id="d-reqs"></dl>
           </section>
-        </div>
+          <div class="ad ad-small" id="ad-detail" hidden></div>
+        </aside>
       </div>
+
+      <section class="d-related" id="d-related-wrap" hidden>
+        <h2>También te puede gustar</h2>
+        <ul class="grid grid-related" id="d-related"></ul>
+      </section>
     </div>
   </section>
+
+  <dialog class="viewer" id="viewer" aria-label="Captura ampliada">
+    <img id="viewer-img" alt="">
+    <button class="round-btn v-close" id="viewer-close" type="button" aria-label="Cerrar">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <button class="round-btn v-prev" id="viewer-prev" type="button" aria-label="Captura anterior">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <button class="round-btn v-next" id="viewer-next" type="button" aria-label="Captura siguiente">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+    </button>
+    <p class="v-count" id="viewer-count"></p>
+  </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <div class="sr-only" id="announcer" aria-live="polite"></div>
 
-  <noscript><p class="noscript">TGA needs JavaScript to load the game library.</p></noscript>
+  <noscript><p class="noscript">TGA necesita JavaScript para cargar la biblioteca de juegos.</p></noscript>
   <script src="app.js"></script>
 </body>
 </html>
