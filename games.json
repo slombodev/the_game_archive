@@ -7,6 +7,49 @@
   },
   "games": [
     {
+      "id": "eldoria-the-last-kingdom",
+      "title": "Eldoria: The Last Kingdom",
+      "genre": "Strategy",
+      "price": 0,
+      "cover": "games/Eldoria - The Last Kingdom/cover.jpg",
+      "background": "games/Eldoria - The Last Kingdom/Background.jpeg",
+      "developer": { "name": "LTK Games" },
+      "released": "2026-10-31",
+      "description": "Durante siglos, cinco Corazones del Mundo mantuvieron el equilibrio de Eldoria. Ahora se oscurecieron, las criaturas cambiaron y marchan contra el último reino en pie. Un tower defense roguelite en 3D: construí y mejorá torres a lo largo del camino, elegí reliquias entre batallas, desbloqueá torres nuevas y llevalas a su forma definitiva para frenar oleada tras oleada hasta la batalla final por Eldoria.",
+      "requirements": {
+        "OS": "Windows 10/11 64-bit",
+        "Storage": "180 MB",
+        "Controles": "Ratón (Espacio: llamar oleada, F: velocidad, Esc: pausa)",
+        "Instalación": "Descomprimí el .zip y abrí el .exe de adentro"
+      },
+      "download": {
+        "url": "https://github.com/slombodev/tga-downloads/releases/download/games/Eldoria-The-Last-Kingdom.zip",
+        "size": "115 MB",
+        "platform": "Windows (.zip)"
+      }
+    },
+    {
+      "id": "stranded-nebora",
+      "title": "STRANDED: Nébora",
+      "genre": "Survival",
+      "price": 0,
+      "cover": "games/STRANDED/cover.jpg",
+      "background": "games/STRANDED/background.jpg",
+      "developer": { "name": "LTK Games" },
+      "released": "2026-10-30",
+      "description": "Sos un alienígena varado en Nébora, un planeta hostil bajo un gigante anillado. Recolectá chatarra, mineral, cristales y esporas, fabricá herramientas, armas y armaduras, levantá tu base y sobreviví a las criaturas que acechan en la oscuridad mientras reparás tu nave. Y entre los restos de un cementerio de naves vas a descubrir que alguien de tu pueblo llegó antes... y nunca lo contó.",
+      "requirements": {
+        "OS": "Windows 10/11 64-bit",
+        "Storage": "110 MB",
+        "Instalación": "Descomprimí el .zip y abrí el .exe de adentro"
+      },
+      "download": {
+        "url": "https://github.com/slombodev/tga-downloads/releases/download/games/STRANDED.zip",
+        "size": "38 MB",
+        "platform": "Windows (.zip)"
+      }
+    },
+    {
       "id": "bossrush-eclipse",
       "title": "Boss Rush: La Torre del Eclipse",
       "genre": "Action",

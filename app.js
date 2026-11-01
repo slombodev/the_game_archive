@@ -99,6 +99,7 @@ const ICONS = {
   platformer: '<path class="g" d="M5 34h14v8H5zM20 24h14v8H20zM33 12h10v8H33z"/><circle class="g" cx="12" cy="27" r="4"/>',
   shooter: '<circle class="l" cx="24" cy="24" r="14"/><path class="l" d="M24 4v10M24 34v10M4 24h10M34 24h10"/><circle class="g" cx="24" cy="24" r="4"/>',
   horror: '<path class="g" d="M11 42V22a13 13 0 0 1 26 0v20l-4.3-3.5L28.3 42 24 38.5 19.7 42l-4.4-3.5z"/><circle class="d" cx="19" cy="22" r="2.6"/><circle class="d" cx="29" cy="22" r="2.6"/>',
+  survival: '<path class="g" d="M24 7L5 41h38z"/><path class="d" d="M24 22l-7 19h14z"/>',
   arcade: '<path class="g" d="M9 31h30a4 4 0 0 1 4 4v3a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4v-3a4 4 0 0 1 4-4z"/><path class="l" d="M19 31V19"/><circle class="g" cx="19" cy="13" r="7"/><circle class="g" cx="33" cy="26" r="3.5"/>',
   incremental: '<path class="g" d="M6 31h9v11H6zM19.5 23h9v19h-9zM33 15h9v27h-9z"/><path class="l" d="M7 23l12-10 6 5L39 6M32 6h7v7"/>',
   web: '<circle class="g" cx="24" cy="24" r="17"/><path class="l" style="stroke:hsl(var(--hue),45%,30%);stroke-width:2" d="M7 24h34M24 7c-7 6-7 28 0 34M24 7c7 6 7 28 0 34M10 15.5h28M10 32.5h28"/>',
