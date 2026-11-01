@@ -9,7 +9,7 @@ document.documentElement.classList.add('js');
 const DATA_URL = 'games.json';
 const PADDLE_SRC = 'https://cdn.paddle.com/paddle/v2/paddle.js';
 const ADSENSE_SRC = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js';
-const CONTACT_EMAIL = 'patrone.webstudio@gmail.com';
+const CONTACT_EMAIL = 'sparkvault.games@gmail.com';
 const MONTH_HUES = [215, 200, 145, 95, 55, 185, 225, 170, 280, 30, 330, 5]; // XMB-style monthly tint
 const LOCALE = 'es';
 const NEW_FOR_DAYS = 14;  // a game can show the "Nuevo" tag for this many days after its release date…
