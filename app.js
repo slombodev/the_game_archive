@@ -599,10 +599,8 @@ function metaChips(game) {
 function fitCover(img, media) {
   const check = () => {
     const r = img.naturalWidth / img.naturalHeight;
-    if (r && Math.abs(r - 16 / 9) > 0.3 && !media.classList.contains('contain')) {
-      media.classList.add('contain');
-      media.prepend(el('img', { className: 'card-fill', src: img.currentSrc || img.src, alt: '', decoding: 'async' }));
-    }
+    // Square/portrait box art: fill the 16:9 frame and keep the lower part, where the title usually sits.
+    if (r && r < 16 / 9 - 0.3) media.classList.add('tall');
   };
   if (img.complete && img.naturalWidth) check();
   else img.addEventListener('load', check, { once: true });
