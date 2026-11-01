@@ -28,7 +28,7 @@
         "Instalación": "Descomprimí el .zip y abrí el .exe de adentro"
       },
       "download": {
-        "url": "https://github.com/slombodev/tga-downloads/releases/download/games/Eldoria-The-Last-Kingdom.zip",
+        "url": "https://github.com/slombodev/sparkvault-downloads/releases/download/games/Eldoria-The-Last-Kingdom.zip",
         "size": "115 MB",
         "platform": "Windows (.zip)"
       }
@@ -49,7 +49,7 @@
         "Instalación": "Descomprimí el .zip y abrí el .exe de adentro"
       },
       "download": {
-        "url": "https://github.com/slombodev/tga-downloads/releases/download/games/STRANDED.zip",
+        "url": "https://github.com/slombodev/sparkvault-downloads/releases/download/games/STRANDED.zip",
         "size": "38 MB",
         "platform": "Windows (.zip)"
       }
@@ -70,7 +70,7 @@
         "Instalación": "Descomprimí el .zip y abrí el .exe de adentro"
       },
       "download": {
-        "url": "https://github.com/slombodev/tga-downloads/releases/download/games/BossRush-Eclipse.zip",
+        "url": "https://github.com/slombodev/sparkvault-downloads/releases/download/games/BossRush-Eclipse.zip",
         "size": "38 MB",
         "platform": "Windows (.zip)"
       }
@@ -109,7 +109,7 @@
         "Instalación": "Descomprimí el .zip y abrí el .exe de adentro"
       },
       "download": {
-        "url": "https://github.com/slombodev/tga-downloads/releases/download/games/Keep-Digging.zip",
+        "url": "https://github.com/slombodev/sparkvault-downloads/releases/download/games/Keep-Digging.zip",
         "size": "56 MB",
         "platform": "Windows (.zip)"
       }
@@ -130,7 +130,7 @@
         "Instalación": "Descomprimí el .zip y abrí el .exe de adentro"
       },
       "download": {
-        "url": "https://github.com/slombodev/tga-downloads/releases/download/games/OVERDRIVE-Express-Delivery.zip",
+        "url": "https://github.com/slombodev/sparkvault-downloads/releases/download/games/OVERDRIVE-Express-Delivery.zip",
         "size": "44 MB",
         "platform": "Windows (.zip)"
       }
