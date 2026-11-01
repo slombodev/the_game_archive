@@ -18,7 +18,7 @@
       "price": 0,
       "cover": "games/Eldoria - The Last Kingdom/cover.jpg",
       "background": "games/Eldoria - The Last Kingdom/Background.jpeg",
-      "developer": { "name": "LTK Games" },
+      "developer": { "name": "LTK Games", "url": "https://www.tiktok.com/@ltkgamesdev" },
       "released": "2026-10-31",
       "description": "Durante siglos, cinco Corazones del Mundo mantuvieron el equilibrio de Eldoria. Ahora se oscurecieron, las criaturas cambiaron y marchan contra el último reino en pie. Un tower defense roguelite en 3D: construí y mejorá torres a lo largo del camino, elegí reliquias entre batallas, desbloqueá torres nuevas y llevalas a su forma definitiva para frenar oleada tras oleada hasta la batalla final por Eldoria.",
       "requirements": {
@@ -40,7 +40,7 @@
       "price": 0,
       "cover": "games/STRANDED/cover.jpg",
       "background": "games/STRANDED/background.jpg",
-      "developer": { "name": "LTK Games" },
+      "developer": { "name": "LTK Games", "url": "https://www.tiktok.com/@ltkgamesdev" },
       "released": "2026-10-30",
       "description": "Sos un alienígena varado en Nébora, un planeta hostil bajo un gigante anillado. Recolectá chatarra, mineral, cristales y esporas, fabricá herramientas, armas y armaduras, levantá tu base y sobreviví a las criaturas que acechan en la oscuridad mientras reparás tu nave. Y entre los restos de un cementerio de naves vas a descubrir que alguien de tu pueblo llegó antes... y nunca lo contó.",
       "requirements": {
@@ -62,7 +62,7 @@
       "cover": "games/bossrush-eclipse/cover.jpg",
       "background": "games/bossrush-eclipse/background.jpg",
       "released": "2026-10-25",
-      "developer": { "name": "LTK Games" },
+      "developer": { "name": "LTK Games", "url": "https://www.tiktok.com/@ltkgamesdev" },
       "description": "El eclipse cubrió el cielo y la Torre despertó. Un boss rush de plataformas donde subís piso por piso peleando cuerpo a cuerpo contra los guardianes de la Torre del Eclipse. Aprendé los patrones de cada jefe, esquivá con el dash, devolvé sus golpes con el parry y no te detengas hasta llegar a la cima.",
       "requirements": {
         "OS": "Windows 10/11 64-bit",

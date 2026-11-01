@@ -337,6 +337,8 @@ body.no-games .home-top { display: none; }
 .lib-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
 .lib-head h2 { margin: 0; font-size: clamp(30px, 3.4vw, 44px); font-weight: 800; letter-spacing: -.035em; line-height: 1; }
 .lib-count { margin: 0; font-size: 15px; font-weight: 600; color: var(--text-3); }
+.lib-link { margin-left: auto; padding: 10px 2px; font-size: 15px; font-weight: 700; color: var(--text); text-decoration: underline; text-decoration-color: rgba(255, 255, 255, .35); text-underline-offset: 3px; transition: text-decoration-color .2s ease; }
+@media (hover: hover) and (pointer: fine) { .lib-link:hover { text-decoration-color: currentColor; } }
 
 .cats {
   position: relative;

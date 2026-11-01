@@ -220,11 +220,19 @@ function buildCategories(games) {
     ...(studios.length > 1 ? studios.map((name, i) => ({
       id: studioCatId(name), label: name, icon: 'studio', studio: true, firstStudio: i === 0,
       games: games.filter((g) => g.developer?.name === name),
+      url: games.find((g) => g.developer?.name === name && g.developer.url)?.developer.url ?? null,
     })) : []),
   ].filter((c) => c.games.length > 0);
 }
 
 const studioCatId = (name) => `studio-${name}`;
+
+/** "TikTok", "Instagram"… for a studio's link; "sitio web" for anything else. */
+function linkLabel(url) {
+  const host = new URL(url).hostname.replace(/^www\./, '');
+  const known = { 'tiktok.com': 'TikTok', 'instagram.com': 'Instagram', 'youtube.com': 'YouTube', 'x.com': 'X', 'twitter.com': 'X', 'itch.io': 'itch.io', 'discord.gg': 'Discord', 'facebook.com': 'Facebook' };
+  return Object.entries(known).find(([h]) => host === h || host.endsWith(`.${h}`))?.[1] ?? 'sitio web';
+}
 
 /* ============================== Sound ============================== */
 
@@ -815,6 +823,13 @@ function syncCategories() {
   $('items').setAttribute('aria-labelledby', `cat-${state.cat}`);
   const n = currentCat().games.length;
   $('lib-count').textContent = `${n} ${n === 1 ? 'juego' : 'juegos'}`;
+  const link = $('lib-link');
+  const url = currentCat().url;
+  link.hidden = !url;
+  if (url) {
+    link.href = url;
+    link.textContent = `${currentCat().label} en ${linkLabel(url)} ↗`;
+  }
   // Keep the selected tab visible in the (phone-width) scrolling row without scrolling the page.
   const row = $('cats');
   const tab = $(`cat-${state.cat}`);
@@ -924,7 +939,7 @@ function fillDetail(game) {
   if (game.developer) {
     dev.append('de ', studioName(game.developer.name));
     if (game.developer.url) {
-      dev.append(' · ', el('a', { href: game.developer.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'sitio web' }));
+      dev.append(' · ', el('a', { href: game.developer.url, target: '_blank', rel: 'noopener noreferrer', textContent: linkLabel(game.developer.url) }));
     }
   }
   if (game.releasedDate) dev.append(`${game.developer ? ' · ' : ''}Lanzado el ${dateFmt.format(game.releasedDate)}`);
