@@ -669,3 +669,22 @@ body.doc::before {
 .doc-section a { color: var(--text); text-underline-offset: 3px; }
 .doc .fill { background: rgba(255, 210, 122, .16); color: var(--buy); padding: 0 4px; border-radius: 4px; }
 .doc-foot { margin-top: 28px; font-size: 13px; color: var(--text-3); text-align: center; }
+
+/* ---------- Studios & download counts ---------- */
+.slide-dev { display: flex; flex-wrap: wrap; align-items: center; }
+.slide-dev > :not([hidden]) ~ :not([hidden])::before { content: "·"; margin: 0 8px; color: var(--text-3); }
+.studio-link {
+  position: relative; padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; font-weight: 700; color: var(--text);
+  text-decoration: underline; text-decoration-color: rgba(255, 255, 255, .35); text-underline-offset: 3px;
+  transition: text-decoration-color .2s ease;
+}
+.studio-link::after { content: ""; position: absolute; inset: -12px -6px; } /* 44px tap target */
+@media (hover: hover) and (pointer: fine) { .studio-link:hover { text-decoration-color: currentColor; } }
+.dl-count { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.dl-count .ui-ico svg, .tag-dl .ui-ico svg { width: 16px; height: 16px; }
+.d-actions .dl-count { font-size: 15px; font-weight: 600; color: var(--text-2); }
+.tag-dl { top: auto; bottom: 12px; left: 12px; gap: 4px; padding: 0 9px 0 7px; background: rgba(8, 10, 16, .66); color: var(--text); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); font-variant-numeric: tabular-nums; }
+.tag-dl .ui-ico svg { width: 13px; height: 13px; }
+@media (min-width: 861px) { .cat-studio-first { margin-left: 18px; } }
+@media (max-width: 720px) { .tag-dl { bottom: 8px; left: 8px; } }

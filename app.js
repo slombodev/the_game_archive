@@ -16,6 +16,8 @@ const NEW_FOR_DAYS = 14;  // a game can show the "Nuevo" tag for this many days 
 const NEW_MAX = 3;        // …and only the most recent few get it
 const HERO_COUNT = 5;     // newest games shown in the carousel
 const HERO_MS = 7000;     // time per carousel slide
+const MIN_DOWNLOADS_SHOWN = 10; // download counters stay hidden below this (a "1 descarga" badge hurts more than it helps)
+const DOWNLOADS_CACHE_MS = 15 * 60 * 1000; // GitHub allows 60 anonymous API calls/hour per visitor; cache the counts
 
 // games.json keeps English genre keys (they also pick the icon); the page shows them in Spanish.
 const GENRES = {
@@ -187,6 +189,7 @@ const ICONS = {
   shooter: '<circle class="l" cx="24" cy="24" r="14"/><path class="l" d="M24 4v10M24 34v10M4 24h10M34 24h10"/><circle class="g" cx="24" cy="24" r="4"/>',
   horror: '<path class="g" d="M11 42V22a13 13 0 0 1 26 0v20l-4.3-3.5L28.3 42 24 38.5 19.7 42l-4.4-3.5z"/><circle class="d" cx="19" cy="22" r="2.6"/><circle class="d" cx="29" cy="22" r="2.6"/>',
   survival: '<path class="g" d="M24 7L5 41h38z"/><path class="d" d="M24 22l-7 19h14z"/>',
+  studio: '<path class="g" d="M6 42V20l12-8v8l12-8v8l12-8v30z"/><path class="d" d="M13 29h5v5h-5zM22 29h5v5h-5zM31 29h5v5h-5z"/>',
   arcade: '<path class="g" d="M9 31h30a4 4 0 0 1 4 4v3a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4v-3a4 4 0 0 1 4-4z"/><path class="l" d="M19 31V19"/><circle class="g" cx="19" cy="13" r="7"/><circle class="g" cx="33" cy="26" r="3.5"/>',
   incremental: '<path class="g" d="M6 31h9v11H6zM19.5 23h9v19h-9zM33 15h9v27h-9z"/><path class="l" d="M7 23l12-10 6 5L39 6M32 6h7v7"/>',
   web: '<circle class="g" cx="24" cy="24" r="17"/><path class="l" style="stroke:hsl(var(--hue),45%,30%);stroke-width:2" d="M7 24h34M24 7c-7 6-7 28 0 34M24 7c7 6 7 28 0 34M10 15.5h28M10 32.5h28"/>',
@@ -207,13 +210,21 @@ const uiIcon = (name) => el('span', { className: 'ui-ico', innerHTML: `<svg view
 
 function buildCategories(games) {
   const genres = [...new Set(games.map((g) => g.genre))].sort((a, b) => genreLabel(a).localeCompare(genreLabel(b), LOCALE));
+  const studios = [...new Set(games.map((g) => g.developer?.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, LOCALE));
   return [
     { id: 'all', label: 'Todos', icon: 'all', games },
     ...genres.map((genre) => ({ id: `genre-${genre}`, label: genreLabel(genre), icon: genre.toLowerCase(), games: games.filter((g) => g.genre === genre) })),
     { id: 'web', label: 'En el navegador', icon: 'web', games: games.filter((g) => g.play) },
     { id: 'free', label: 'Gratis', icon: 'free', games: games.filter((g) => g.isFree) },
+    // One tab per studio, once there is more than one to choose from.
+    ...(studios.length > 1 ? studios.map((name, i) => ({
+      id: studioCatId(name), label: name, icon: 'studio', studio: true, firstStudio: i === 0,
+      games: games.filter((g) => g.developer?.name === name),
+    })) : []),
   ].filter((c) => c.games.length > 0);
 }
+
+const studioCatId = (name) => `studio-${name}`;
 
 /* ============================== Sound ============================== */
 
@@ -562,7 +573,7 @@ function fitCover(img, media) {
 
 const state = {
   games: [], cats: [], cat: 0, focus: new Map(),
-  detail: null, returnFocus: null, hoverGame: null, ads: { hero: null, detail: null },
+  detail: null, returnFocus: null, afterClose: null, hoverGame: null, ads: { hero: null, detail: null },
 };
 const hero = { games: [], index: 0, paused: false, hover: false };
 
@@ -602,7 +613,11 @@ function renderHero(games) {
         el('h2', { className: 'slide-title', textContent: g.title }),
         el('div', { className: 'meta-row' }, [
           el('p', { className: 'chips' }, metaChips(g)),
-          el('p', { className: 'slide-dev', textContent: [g.developer?.name, g.releasedDate && dateFmt.format(g.releasedDate)].filter(Boolean).join(' · ') }),
+          el('p', { className: 'slide-dev' }, [
+            g.developer ? studioName(g.developer.name) : null,
+            g.releasedDate ? el('span', { textContent: dateFmt.format(g.releasedDate) }) : null,
+            downloadBadge(g),
+          ]),
         ]),
         el('p', { className: 'slide-desc', textContent: g.description }),
         el('div', { className: 'slide-actions' }, [makeCta(g), more]),
@@ -723,6 +738,7 @@ function gameCard(game, { id, onOpen } = {}) {
     img,
     game.isNew ? el('span', { className: 'tag tag-new', textContent: 'Nuevo' }) : null,
     el('span', { className: `tag tag-price ${game.isFree ? 'free' : 'paid'}`, textContent: game.isFree ? 'Gratis' : formatPrice(game.price) }),
+    downloadBadge(game, { className: 'tag tag-dl', compact: true }),
   ]);
   fitCover(img, media);
   const card = el('button', { type: 'button', className: 'card' }, [
@@ -742,7 +758,7 @@ function gameCard(game, { id, onOpen } = {}) {
 
 function renderCategories() {
   $('cats').replaceChildren(...state.cats.map((c, i) => {
-    const btn = el('button', { type: 'button', className: 'cat', id: `cat-${i}`, tabIndex: -1 }, [
+    const btn = el('button', { type: 'button', className: c.firstStudio ? 'cat cat-studio-first' : 'cat', id: `cat-${i}`, tabIndex: -1 }, [
       el('span', { className: 'cat-icon', innerHTML: iconSvg(c.icon) }),
       el('span', { className: 'cat-label', textContent: c.label }),
       el('span', { className: 'cat-count', textContent: String(c.games.length) }),
@@ -796,6 +812,7 @@ function renderItems() {
   list.classList.remove('swap');
   void list.offsetWidth; // restart the staggered entrance
   list.classList.add('swap');
+  paintDownloads();
 }
 
 function setRoving(i) {
@@ -868,13 +885,14 @@ function fillDetail(game) {
   const dev = $('d-dev');
   dev.replaceChildren();
   if (game.developer) {
-    const name = game.developer.url
-      ? el('a', { href: game.developer.url, target: '_blank', rel: 'noopener noreferrer', textContent: game.developer.name })
-      : el('strong', { textContent: game.developer.name });
-    dev.append('de ', name);
+    dev.append('de ', studioName(game.developer.name));
+    if (game.developer.url) {
+      dev.append(' · ', el('a', { href: game.developer.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'sitio web' }));
+    }
   }
   if (game.releasedDate) dev.append(`${game.developer ? ' · ' : ''}Lanzado el ${dateFmt.format(game.releasedDate)}`);
   else if (game.released) dev.append(`${game.developer ? ' · ' : ''}Lanzado: ${game.released}`);
+  $('d-dl').dataset.dl = game.id;
 
   const price = $('d-price');
   price.textContent = game.isFree ? 'Gratis' : formatPrice(game.price);
@@ -949,6 +967,7 @@ function fillDetail(game) {
   const related = [...others.filter((g) => g.genre === game.genre), ...others.filter((g) => g.genre !== game.genre)].slice(0, 4);
   $('d-related-wrap').hidden = !related.length;
   $('d-related').replaceChildren(...related.map((g) => el('li', { className: 'card-li' }, [gameCard(g, { onOpen: switchDetail })])));
+  paintDownloads();
 }
 
 async function startPurchase(game, button) {
@@ -1054,6 +1073,102 @@ function closeDetail({ fromHistory = false } = {}) {
   if (back?.isConnected) back.focus({ preventScroll: true });
   else $(`item-${focusIndex()}`)?.focus({ preventScroll: true });
   if (!fromHistory && location.hash) history.replaceState(null, '', location.pathname + location.search);
+  const after = state.afterClose;
+  state.afterClose = null;
+  after?.();
+}
+
+/* ============================== Studios ============================== */
+
+/** A studio name that filters the library to that studio's games (plain text when there's only one studio). */
+function studioName(name) {
+  if (!state.cats.some((c) => c.id === studioCatId(name))) return el('strong', { textContent: name });
+  const b = el('button', { type: 'button', className: 'studio-link', textContent: name });
+  b.setAttribute('aria-label', `Ver todos los juegos de ${name}`);
+  b.addEventListener('click', (e) => { e.stopPropagation(); showStudio(name); });
+  return b;
+}
+
+function showStudio(name) {
+  const i = state.cats.findIndex((c) => c.id === studioCatId(name));
+  if (i < 0) return;
+  selectCategory(i);
+  const go = () => {
+    $('library').scrollIntoView({ block: 'start', behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+    $(`cat-${i}`).focus({ preventScroll: true });
+  };
+  if (state.detail) {
+    state.afterClose = go; // the page is scroll-locked until the game page closes
+    closeDetail();
+  } else {
+    go();
+  }
+}
+
+/* ============================== Download counts ============================== */
+
+/** Reads download_count for games whose download.url is a GitHub release asset. */
+const downloads = (() => {
+  const RELEASE_ASSET = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/releases\/download\/([^/]+)\/[^/?#]+$/;
+  const counts = new Map(); // asset URL → count
+
+  function cached(key) {
+    try {
+      const hit = JSON.parse(localStorage.getItem(key) ?? 'null');
+      return hit && Date.now() - hit.t < DOWNLOADS_CACHE_MS ? hit.assets : null;
+    } catch { return null; }
+  }
+  function remember(key, assets) {
+    try { localStorage.setItem(key, JSON.stringify({ t: Date.now(), assets })); } catch { /* storage unavailable */ }
+  }
+
+  async function loadRelease(owner, repo, tag) {
+    const key = `tga.downloads.${owner}/${repo}/${tag}`;
+    let assets = cached(key);
+    if (!assets) {
+      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/tags/${encodeURIComponent(tag)}`, { headers: { Accept: 'application/vnd.github+json' } });
+      if (!res.ok) return; // rate-limited or offline: counters just stay hidden
+      const release = await res.json();
+      assets = (release.assets ?? []).map((a) => [a.browser_download_url, a.download_count]);
+      remember(key, assets);
+    }
+    for (const [url, n] of assets) if (Number.isFinite(n)) counts.set(url, n);
+  }
+
+  return {
+    async load(games) {
+      const releases = new Map();
+      for (const g of games) {
+        const m = g.download && RELEASE_ASSET.exec(g.download.url);
+        if (m) releases.set(`${m[1]}/${m[2]}/${m[3]}`, [m[1], m[2], decodeURIComponent(m[3])]);
+      }
+      await Promise.allSettled([...releases.values()].map((args) => loadRelease(...args)));
+    },
+    get(game) { return game.download ? counts.get(game.download.url) ?? null : null; },
+  };
+})();
+
+const countFmt = new Intl.NumberFormat(LOCALE, { useGrouping: 'always' }); // "1.234", not Spanish's default "1234"
+const compactFmt = new Intl.NumberFormat(LOCALE, { notation: 'compact', maximumFractionDigits: 1 });
+
+/** A placeholder that paintDownloads() fills in once the counts arrive. */
+function downloadBadge(game, { className = 'dl-count', compact = false } = {}) {
+  const node = el('span', { className, hidden: true });
+  node.dataset.dl = game.id;
+  if (compact) node.dataset.compact = '1';
+  return node;
+}
+
+function paintDownloads() {
+  document.querySelectorAll('[data-dl]').forEach((node) => {
+    const game = state.games.find((g) => g.id === node.dataset.dl);
+    const n = game ? downloads.get(game) : null;
+    const show = n !== null && n >= MIN_DOWNLOADS_SHOWN;
+    node.hidden = !show;
+    if (!show) return;
+    const text = node.dataset.compact ? compactFmt.format(n) : `${countFmt.format(n)} ${n === 1 ? 'descarga' : 'descargas'}`;
+    node.replaceChildren(uiIcon('download'), el('span', { textContent: text }));
+  });
 }
 
 function gameFromHash() {
@@ -1320,6 +1435,7 @@ async function boot() {
   }
   renderHero(catalog.games);
   renderWebList(catalog.games);
+  downloads.load(catalog.games).then(paintDownloads);
   renderCategories();
   syncCategories();
   renderItems();
